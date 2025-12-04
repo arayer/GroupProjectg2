@@ -13,18 +13,31 @@ from streamlit_folium import st_folium
 # ----------------------------------------------------------
 # Custom CSS for fonts and minor tweaks
 # ----------------------------------------------------------
+# Custom CSS for gradient background and fonts
 st.markdown("""
     <style>
+    /* Import a nice font */
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
 
-    body {
+    /* Body gradient */
+    body, .main {
         font-family: 'Montserrat', sans-serif;
+        background: linear-gradient(to bottom, #2196f3, #000000);
+        color: white;
     }
 
+    /* Sidebar gradient */
+    .css-1d391kg {
+        background: linear-gradient(to bottom, #2196f3, #000000);
+        color: white;
+    }
+
+    /* Headers color */
     h1, h2, h3, h4 {
-        color: #2196f3;
+        color: #ffffff;
     }
 
+    /* Buttons */
     .stButton>button {
         background-color: #2196f3;
         color: white;
@@ -34,16 +47,18 @@ st.markdown("""
         font-weight: bold;
     }
     .stButton>button:hover {
-        background-color: #1976d2;
+        background-color: #0d47a1;
         color: white;
     }
 
+    /* Table hover */
     .stDataFrame tbody tr:hover {
         background-color: #1e88e5 !important;
         color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 # Block 2: Page configuration
 st.set_page_config(
