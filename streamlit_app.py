@@ -152,48 +152,26 @@ elif page == "Restaurant Table":
 
             st.success(f"Loaded {len(df)} restaurants")
 
-            # Style the price filter buttons for uniform width and visibility
+            # Style the price filter buttons: white background, black text
             st.markdown("""
                 <style>
-                /* Main container for the radio group, use flexbox */
-                div[role="radiogroup"] {
-                    display: flex;
-                    justify-content: space-between; /* Distribute items evenly */
-                    width: 100%; /* Take full width of the parent container */
-                }
-
-                /* Individual button labels */
-                div[data-baseweb="radio"] > div > label {
-                    display: flex;
-                    justify-content: center; /* Center text within the button */
-                    width: 100%; /* Ensure the label fills the flex item's width */
-                    cursor: pointer;
-                }
-
-                /* The inner div containing the text and the hidden radio circle */
                 div[data-baseweb="radio"] > div > label > div {
-                    background-color: #001f3f !important;  /* Navy background */
-                    color: white !important; /* White text */
+                    background-color: white !important;
+                    color: black !important;
                     border-radius: 8px;
                     padding: 0.4rem 0.8rem;
+                    margin-right: 5px;
                     font-weight: bold;
-                    text-align: center;
-                    width: 100%; /* Make the visible part take the full width */
+                    border: 1px solid #ccc;
                 }
-
-                /* Hide the actual radio input circle to make it look like buttons */
-                div[data-baseweb="radio"] input[type="radio"] {
-                    display: none;
-                }
-
                 div[data-baseweb="radio"] > div > label > div:hover {
-                    background-color: #001a35 !important;  /* Slightly darker navy on hover */
+                    background-color: #f0f0f0 !important;  /* Slight gray on hover */
+                    color: black !important;
                 }
-
-                /* Style for the selected button */
-                input[type="radio"]:checked + div {
-                    background-color: #007bff !important;  /* Use a contrasting color for "selected" state, e.g., a bright blue */
-                    color: white !important;
+                div[data-baseweb="radio"] input:checked + div {
+                    background-color: white !important;
+                    color: black !important;
+                    border: 2px solid #000;  /* Add border to indicate selection */
                 }
                 </style>
             """, unsafe_allow_html=True)
@@ -217,6 +195,7 @@ elif page == "Restaurant Table":
 
         except Exception as e:
             st.error(f"Query failed: {e}")
+
 
 
 # ============================================
