@@ -131,7 +131,7 @@ if page == "Homepage":
 
 
 # ============================================
-# PAGE 2 — RESTAURANT TABLE (with price filter buttons and row coloring)
+# PAGE 2 — RESTAURANT TABLE (price filter buttons)
 # ============================================
 elif page == "Restaurant Table":
     st.header("📋 Restaurant Table")
@@ -154,47 +154,24 @@ elif page == "Restaurant Table":
 
             # Price filter buttons
             st.markdown("### Filter by Price")
-            col1, col2, col3, col4, col5 = st.columns(5)
+            filter_price = st.radio(
+                "Select a price range:",
+                options=["All", "$", "$$", "$$$", "$$$$"],
+                horizontal=True
+            )
 
-            filter_price = None
-            with col1:
-                if st.button("Show All"):
-                    filter_price = "ALL"
-            with col2:
-                if st.button("$"):
-                    filter_price = "$"
-            with col3:
-                if st.button("$$"):
-                    filter_price = "$$"
-            with col4:
-                if st.button("$$$"):
-                    filter_price = "$$$"
-            with col5:
-                if st.button("$$$$"):
-                    filter_price = "$$$$"
-
-            # Apply filter if any button clicked
-            if filter_price and filter_price != "ALL":
+            # Apply filter
+            if filter_price != "All":
                 df = df[df["price_symbol"] == filter_price]
 
-            # Define row colors based on price
-            def highlight_price(row):
-                color_map = {
-                    "$": "#64b5f6",       # Light Blue
-                    "$$": "#2196f3",      # Blue
-                    "$$$": "#0d47a1",     # Dark Blue
-                    "$$$$": "#6a1b9a"     # Purple
-                }
-                color = color_map.get(row["price_symbol"], "white")
-                return [f'background-color: {color}; color: white;' for _ in row]
+            st.dataframe(df, use_container_width=True)
 
-            st.dataframe(df.style.apply(highlight_price, axis=1), use_container_width=True)
-
-            if filter_price and filter_price != "ALL":
+            if filter_price != "All":
                 st.info(f"Showing {len(df)} restaurants with price {filter_price}")
 
         except Exception as e:
             st.error(f"Query failed: {e}")
+
 
 
 # ============================================
