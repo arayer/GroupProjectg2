@@ -297,8 +297,7 @@ elif page == "Find Food Near Me!":
                     **Marker Color Key (Price Ranges):**  
                     - Light Blue: $ (Budget-friendly)  
                     - Blue: $$ (Moderate)  
-                    - Dark Blue: $$$ (Upscale)  
-                    - Purple: $$$$ (Fine Dining)  
+                    - Dark Blue: $$$ (Upscale)   
                 """)
                 
         except Exception as e:
