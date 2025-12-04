@@ -247,35 +247,65 @@ elif page == "Find Food Near Me!":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch restaurant names and coordinates
+            # Fetch restaurant names, coordinates, and price symbol
             query = """
-                SELECT name, latitude, longitude
-                FROM Restaurants
-                WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+                SELECT r.name, r.latitude, r.longitude, pr.price_symbol
+                FROM Restaurants r
+                LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL;
             """
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurant coordinates found.")
+                st.warning("No restaurant coordinates found")
             else:
                 import folium
                 from streamlit_folium import st_folium
 
-                # Create a Folium map centered on the average coordinates
+                # Create a Folium map centered on average coordinates
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
-                    zoom_start=11,
-                    tiles="CartoDB Positron"
+                    zoom_start=12,
+                    tiles="CartoDB Positron"  # light map for visibility
                 )
 
-                # Add markers for each restaurant
+                # Define marker colors by price range
+                price_color_map = {
+                    "$": "lightblue",
+                    "$$": "blue",
+                    "$$$": "darkblue",
+                    "$$$$": "purple"
+                }
+
+                # Add markers
                 for _, row in df.iterrows():
+                    color = price_color_map.get(row["price_symbol"], "blue")
                     folium.Marker(
-                        [row["latitude"], row["longitude"]],
-                        popup=row["name"],
+                        location=[row["latitude"], row["longitude"]],
+                        popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
-                        icon=folium.Icon(color="pink", icon="info-sign")
+                        icon=folium.Icon(color=color, icon="cutlery", prefix="fa")
                     ).add_to(m)
+
+                # Add simple legend (HTML div) to map
+                legend_html = """
+                <div style="
+                    position: fixed; 
+                    bottom: 50px; left: 50px; width: 140px; height: 110px; 
+                    background-color: white;
+                    border:2px solid grey; z-index:9999; font-size:14px;
+                    padding: 10px;
+                    opacity: 0.9;
+                ">
+                <b>Price Legend</b><br>
+                <i style='background:lightblue;width:10px;height:10px;display:inline-block'></i> $<br>
+                <i style='background:blue;width:10px;height:10px;display:inline-block'></i> $$<br>
+                <i style='background:darkblue;width:10px;height:10px;display:inline-block'></i> $$$<br>
+                <i style='background:purple;width:10px;height:10px;display:inline-block'></i> $$$$
+                </div>
+                """
+                m.get_root().html.add_child(folium.Element(legend_html))
 
                 # Display map in Streamlit
                 st_folium(m, height=600, width=None)
