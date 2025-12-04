@@ -236,7 +236,7 @@ elif page == "Restaurant Search":
 
 
 # ============================================
-#  PAGE 3 — RESTAURANT MAP
+#  PAGE 3 — RESTAURANT MAP (with price legend)
 # ============================================
 elif page == "Restaurant Map":
     
@@ -247,7 +247,7 @@ elif page == "Restaurant Map":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch restaurant names and coordinates with price
+            # Fetch restaurant names, coordinates, and price symbol
             query = """
                 SELECT r.name, r.latitude, r.longitude, pr.price_symbol
                 FROM Restaurants r
@@ -258,20 +258,19 @@ elif page == "Restaurant Map":
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurant coordinates found.")
+                st.warning("No restaurant coordinates found")
             else:
                 import folium
                 from streamlit_folium import st_folium
-                from branca.element import Template, MacroElement
 
-                # Map centered on average coordinates
+                # Create a Folium map centered on average coordinates
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
                     zoom_start=12,
-                    tiles="CartoDB Positron"
+                    tiles="CartoDB Positron"  # light map for visibility
                 )
 
-                # Marker colors by price range
+                # Define marker colors by price range
                 price_color_map = {
                     "$": "lightblue",
                     "$$": "blue",
@@ -283,40 +282,38 @@ elif page == "Restaurant Map":
                 for _, row in df.iterrows():
                     color = price_color_map.get(row["price_symbol"], "blue")
                     folium.Marker(
-                        [row["latitude"], row["longitude"]],
+                        location=[row["latitude"], row["longitude"]],
                         popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
                         icon=folium.Icon(color=color, icon="cutlery", prefix="fa")
                     ).add_to(m)
 
-                # Add legend
+                # Add simple legend (HTML div) to map
                 legend_html = """
-                {% macro html(this, kwargs) %}
                 <div style="
                     position: fixed; 
-                    bottom: 50px; left: 50px; width: 150px; height: 120px; 
+                    bottom: 50px; left: 50px; width: 140px; height: 110px; 
+                    background-color: white;
                     border:2px solid grey; z-index:9999; font-size:14px;
-                    background-color:white;
                     padding: 10px;
-                    ">
-                    <b>Price Legend</b><br>
-                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:lightblue"></i>&nbsp;$<br>
-                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:blue"></i>&nbsp;$$<br>
-                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:darkblue"></i>&nbsp;$$$<br>
-                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:purple"></i>&nbsp;$$$$
+                    opacity: 0.9;
+                ">
+                <b>Price Legend</b><br>
+                <i style='background:lightblue;width:10px;height:10px;display:inline-block'></i> $<br>
+                <i style='background:blue;width:10px;height:10px;display:inline-block'></i> $$<br>
+                <i style='background:darkblue;width:10px;height:10px;display:inline-block'></i> $$$<br>
+                <i style='background:purple;width:10px;height:10px;display:inline-block'></i> $$$$
                 </div>
-                {% endmacro %}
                 """
-                macro = MacroElement()
-                macro._template = Template(legend_html)
-                m.get_root().add_child(macro)
+                m.get_root().html.add_child(folium.Element(legend_html))
 
-                # Display map
+                # Display map in Streamlit
                 st_folium(m, height=600, width=None)
                 st.success(f"Mapped {len(df)} restaurants successfully!")
 
         except Exception as e:
             st.error(f"Map query failed: {e}")
+
 
 
 # ============================================
