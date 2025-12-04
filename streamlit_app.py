@@ -129,22 +129,73 @@ if page == "Homepage":
         unsafe_allow_html=True
     )
 
+
 # ============================================
-# PAGE 2 — RESTAURANT TABLE
+# PAGE 2 — RESTAURANT TABLE (with price filter buttons and row coloring)
 # ============================================
 elif page == "Restaurant Table":
     st.header("📋 Restaurant Table")
     st.markdown("---")
+
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
         try:
-            query = "SELECT * FROM Restaurants;"
+            # Fetch all restaurants with price symbol
+            query = """
+                SELECT r.*, pr.price_symbol
+                FROM Restaurants r
+                LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id;
+            """
             df = pd.read_sql(query, connection)
+
             st.success(f"Loaded {len(df)} restaurants")
-            st.dataframe(df, use_container_width=True)
+
+            # Price filter buttons
+            st.markdown("### Filter by Price")
+            col1, col2, col3, col4, col5 = st.columns(5)
+
+            filter_price = None
+            with col1:
+                if st.button("Show All"):
+                    filter_price = "ALL"
+            with col2:
+                if st.button("$"):
+                    filter_price = "$"
+            with col3:
+                if st.button("$$"):
+                    filter_price = "$$"
+            with col4:
+                if st.button("$$$"):
+                    filter_price = "$$$"
+            with col5:
+                if st.button("$$$$"):
+                    filter_price = "$$$$"
+
+            # Apply filter if any button clicked
+            if filter_price and filter_price != "ALL":
+                df = df[df["price_symbol"] == filter_price]
+
+            # Define row colors based on price
+            def highlight_price(row):
+                color_map = {
+                    "$": "#64b5f6",       # Light Blue
+                    "$$": "#2196f3",      # Blue
+                    "$$$": "#0d47a1",     # Dark Blue
+                    "$$$$": "#6a1b9a"     # Purple
+                }
+                color = color_map.get(row["price_symbol"], "white")
+                return [f'background-color: {color}; color: white;' for _ in row]
+
+            st.dataframe(df.style.apply(highlight_price, axis=1), use_container_width=True)
+
+            if filter_price and filter_price != "ALL":
+                st.info(f"Showing {len(df)} restaurants with price {filter_price}")
+
         except Exception as e:
             st.error(f"Query failed: {e}")
+
 
 # ============================================
 # PAGE 3 — RESTAURANT MAP
