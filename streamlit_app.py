@@ -315,7 +315,7 @@ elif page == "Find Food Near Me!":
 
 
 # ============================================
-# PAGE 4 — MANAGE RESTAURANTS (DELETE)
+# PAGE 4 — MANAGE RESTAURANTS (DELETE BY CUISINE)
 # ============================================
 elif page == "Manage Restaurants":
     st.header("🗑️ Manage Restaurants")
@@ -325,14 +325,14 @@ elif page == "Manage Restaurants":
         st.error("Database connection unavailable.")
     else:
         # Create tabs for different management functions
-        tab1, tab2, tab3 = st.tabs(["Delete Restaurant", "Delete by Criteria", "View All Restaurants"])
+        tab1, tab2 = st.tabs(["Delete by Cuisine Type", "View All Restaurants"])
         
         with tab1:
-            st.subheader("Delete a Restaurant")
-            st.warning("⚠️ **Warning:** Deleting a restaurant is permanent and cannot be undone!")
+            st.subheader("Delete Restaurants by Cuisine")
+            st.info("ℹ️ Select a cuisine type to see which restaurants would be affected. Changes are NOT permanent until you click 'Confirm Delete'.")
             
             try:
-                # Fetch all restaurants
+                # Fetch all restaurants with cuisine info
                 query = """
                     SELECT r.restaurant_id, r.name, r.description, pr.price_symbol,
                            GROUP_CONCAT(ct.cuisine_name) AS cuisines
@@ -349,191 +349,121 @@ elif page == "Manage Restaurants":
                 if df.empty:
                     st.info("No restaurants found in the database.")
                 else:
-                    # Create a dropdown with restaurant names
-                    restaurant_options = {f"{row['name']} (ID: {row['restaurant_id']})": row['restaurant_id'] 
-                                        for _, row in df.iterrows()}
+                    # Get unique cuisines
+                    all_cuisines = sorted(df["cuisines"].dropna().str.split(",").explode().str.strip().unique())
                     
-                    selected_restaurant = st.selectbox(
-                        "Select a restaurant to delete:",
-                        options=list(restaurant_options.keys())
+                    # Cuisine selector
+                    selected_cuisine = st.selectbox(
+                        "Select Cuisine Type to Delete:",
+                        options=["-- Select a Cuisine --"] + all_cuisines,
+                        key="cuisine_selector"
                     )
                     
-                    if selected_restaurant:
-                        restaurant_id = restaurant_options[selected_restaurant]
-                        
-                        # Display restaurant details
-                        restaurant_info = df[df['restaurant_id'] == restaurant_id].iloc[0]
-                        
-                        st.markdown("### Restaurant Details")
-                        col1, col2 = st.columns(2)
-                        with col1:
-                            st.write(f"**Name:** {restaurant_info['name']}")
-                            st.write(f"**Price Range:** {restaurant_info['price_symbol']}")
-                        with col2:
-                            st.write(f"**Cuisines:** {restaurant_info['cuisines']}")
-                            st.write(f"**Description:** {restaurant_info['description']}")
-                        
-                        st.markdown("---")
-                        
-                        # Confirmation checkbox
-                        confirm = st.checkbox("I understand this action cannot be undone")
-                        
-                        # Delete button
-                        col1, col2, col3 = st.columns([1, 1, 2])
-                        with col1:
-                            if st.button("🗑️ Delete Restaurant", disabled=not confirm, key="delete_btn"):
-                                try:
-                                    cursor = connection.cursor()
-                                    
-                                    # Delete related records first (due to foreign key constraints)
-                                    cursor.execute("DELETE FROM RestaurantCuisines WHERE restaurant_id = %s", (restaurant_id,))
-                                    cursor.execute("DELETE FROM RestaurantPricing WHERE restaurant_id = %s", (restaurant_id,))
-                                    
-                                    # Delete the restaurant
-                                    cursor.execute("DELETE FROM Restaurants WHERE restaurant_id = %s", (restaurant_id,))
-                                    
-                                    connection.commit()
-                                    cursor.close()
-                                    
-                                    st.success(f"✅ Restaurant '{restaurant_info['name']}' has been deleted successfully!")
-                                    st.balloons()
-                                    
-                                    # Add a button to refresh the page
-                                    if st.button("🔄 Refresh Page"):
-                                        st.rerun()
-                                        
-                                except Error as e:
-                                    connection.rollback()
-                                    st.error(f"❌ Failed to delete restaurant: {e}")
-                        
-                        with col2:
-                            if st.button("Cancel"):
-                                st.info("Delete operation cancelled")
-                                
-            except Exception as e:
-                st.error(f"❌ Error loading restaurants: {e}")
-        
-        with tab2:
-            st.subheader("Delete Restaurants by Criteria")
-            st.warning("⚠️ **Warning:** This will delete ALL restaurants matching your criteria!")
-            
-            try:
-                # Fetch all restaurants for filtering
-                query = """
-                    SELECT r.restaurant_id, r.name, r.description, pr.price_symbol,
-                           GROUP_CONCAT(ct.cuisine_name) AS cuisines
-                    FROM Restaurants r
-                    LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
-                    LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
-                    LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
-                    LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
-                    GROUP BY r.restaurant_id, r.name, r.description, pr.price_symbol
-                    ORDER BY r.name
-                """
-                df = pd.read_sql(query, connection)
-                
-                if df.empty:
-                    st.info("No restaurants found in the database.")
-                else:
-                    st.markdown("### Select Deletion Criteria")
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        # Price range filter
-                        price_options = ["None"] + sorted(df["price_symbol"].dropna().unique().tolist())
-                        selected_price = st.selectbox(
-                            "Delete by Price Range:",
-                            options=price_options
-                        )
-                    
-                    with col2:
-                        # Cuisine filter
-                        all_cuisines = sorted(df["cuisines"].dropna().str.split(",").explode().unique())
-                        selected_cuisine = st.selectbox(
-                            "Delete by Cuisine Type:",
-                            options=["None"] + all_cuisines
-                        )
-                    
-                    # Filter preview
-                    preview_df = df.copy()
-                    
-                    if selected_price != "None":
-                        preview_df = preview_df[preview_df["price_symbol"] == selected_price]
-                    
-                    if selected_cuisine != "None":
-                        preview_df = preview_df[
-                            preview_df["cuisines"].apply(
-                                lambda x: selected_cuisine in x.split(",") if pd.notna(x) else False
+                    if selected_cuisine != "-- Select a Cuisine --":
+                        # Filter restaurants with selected cuisine
+                        matching_restaurants = df[
+                            df["cuisines"].apply(
+                                lambda x: selected_cuisine in [c.strip() for c in x.split(",")] if pd.notna(x) else False
                             )
                         ]
-                    
-                    # Show matching restaurants
-                    if selected_price != "None" or selected_cuisine != "None":
-                        st.markdown("---")
-                        st.markdown("### Restaurants That Will Be Deleted")
                         
-                        if preview_df.empty:
-                            st.info("No restaurants match the selected criteria.")
+                        if matching_restaurants.empty:
+                            st.warning(f"No restaurants found with cuisine type: {selected_cuisine}")
                         else:
-                            st.error(f"⚠️ {len(preview_df)} restaurant(s) will be permanently deleted:")
+                            st.markdown("---")
+                            st.markdown(f"### Preview: Restaurants with '{selected_cuisine}' Cuisine")
+                            st.warning(f"⚠️ {len(matching_restaurants)} restaurant(s) will be deleted if you confirm:")
+                            
+                            # Display matching restaurants
                             st.dataframe(
-                                preview_df[["restaurant_id", "name", "price_symbol", "cuisines"]],
+                                matching_restaurants[["restaurant_id", "name", "price_symbol", "cuisines", "description"]],
                                 use_container_width=True
                             )
                             
                             st.markdown("---")
                             
-                            # Confirmation
-                            confirm_text = st.text_input(
-                                f"Type 'DELETE {len(preview_df)}' to confirm:",
-                                key="bulk_delete_confirm"
-                            )
+                            # Two-step confirmation process
+                            col1, col2, col3 = st.columns([2, 2, 2])
                             
-                            expected_text = f"DELETE {len(preview_df)}"
-                            
-                            col1, col2, col3 = st.columns([1, 1, 2])
                             with col1:
-                                if st.button("🗑️ Delete All Matching", disabled=(confirm_text != expected_text), key="bulk_delete_btn"):
+                                # First confirmation checkbox
+                                confirm_preview = st.checkbox(
+                                    f"I want to delete all {len(matching_restaurants)} {selected_cuisine} restaurants",
+                                    key="confirm_checkbox"
+                                )
+                            
+                            with col2:
+                                # Second confirmation with text input
+                                if confirm_preview:
+                                    confirm_text = st.text_input(
+                                        "Type 'CONFIRM' to proceed:",
+                                        key="confirm_text_input"
+                                    )
+                                else:
+                                    confirm_text = ""
+                            
+                            # Delete button row
+                            st.markdown("---")
+                            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
+                            
+                            with btn_col1:
+                                delete_enabled = confirm_preview and (confirm_text.upper() == "CONFIRM")
+                                
+                                if st.button(
+                                    "🗑️ Confirm Delete", 
+                                    disabled=not delete_enabled,
+                                    type="primary",
+                                    key="delete_confirm_btn"
+                                ):
                                     try:
                                         cursor = connection.cursor()
                                         deleted_count = 0
+                                        deleted_names = []
                                         
-                                        for _, row in preview_df.iterrows():
+                                        # Delete each matching restaurant
+                                        for _, row in matching_restaurants.iterrows():
                                             restaurant_id = row['restaurant_id']
+                                            restaurant_name = row['name']
                                             
-                                            # Delete related records first
+                                            # Delete related records first (foreign key constraints)
                                             cursor.execute("DELETE FROM RestaurantCuisines WHERE restaurant_id = %s", (restaurant_id,))
                                             cursor.execute("DELETE FROM RestaurantPricing WHERE restaurant_id = %s", (restaurant_id,))
                                             
                                             # Delete the restaurant
                                             cursor.execute("DELETE FROM Restaurants WHERE restaurant_id = %s", (restaurant_id,))
+                                            
                                             deleted_count += 1
+                                            deleted_names.append(restaurant_name)
                                         
                                         connection.commit()
                                         cursor.close()
                                         
-                                        st.success(f"✅ Successfully deleted {deleted_count} restaurant(s)!")
+                                        st.success(f"✅ Successfully deleted {deleted_count} {selected_cuisine} restaurant(s)!")
+                                        
+                                        with st.expander("View deleted restaurants"):
+                                            for name in deleted_names:
+                                                st.write(f"• {name}")
+                                        
                                         st.balloons()
                                         
-                                        if st.button("🔄 Refresh Page", key="bulk_refresh"):
+                                        # Refresh button
+                                        if st.button("🔄 Refresh Page", key="refresh_after_delete"):
                                             st.rerun()
                                             
                                     except Error as e:
                                         connection.rollback()
                                         st.error(f"❌ Failed to delete restaurants: {e}")
                             
-                            with col2:
-                                if st.button("Cancel", key="bulk_cancel"):
-                                    st.info("Bulk delete operation cancelled")
-                    else:
-                        st.info("👆 Select at least one criterion above to preview which restaurants will be deleted.")
+                            with btn_col2:
+                                if st.button("↩️ Cancel", key="cancel_btn"):
+                                    st.info("Delete operation cancelled. No changes were made.")
+                                    st.rerun()
                         
             except Exception as e:
                 st.error(f"❌ Error loading restaurants: {e}")
         
-        with tab3:
-            st.subheader("All Restaurants")
+        with tab2:
+            st.subheader("All Restaurants in Database")
             try:
                 query = """
                     SELECT r.restaurant_id, r.name, r.description, r.website, pr.price_symbol,
@@ -551,11 +481,24 @@ elif page == "Manage Restaurants":
                 if df.empty:
                     st.info("No restaurants found in the database.")
                 else:
-                    st.success(f"Total Restaurants: {len(df)}")
-                    st.dataframe(
-                        df[["restaurant_id", "name", "price_symbol", "cuisines", "description"]],
-                        use_container_width=True
-                    )
+                    st.success(f"📊 Total Restaurants: {len(df)}")
+                    
+                    # Show cuisine breakdown
+                    cuisine_counts = df["cuisines"].dropna().str.split(",").explode().str.strip().value_counts()
+                    
+                    col1, col2 = st.columns([2, 1])
+                    
+                    with col1:
+                        st.dataframe(
+                            df[["restaurant_id", "name", "price_symbol", "cuisines", "description"]],
+                            use_container_width=True,
+                            height=400
+                        )
+                    
+                    with col2:
+                        st.markdown("### Cuisine Breakdown")
+                        for cuisine, count in cuisine_counts.items():
+                            st.write(f"**{cuisine}:** {count} restaurant(s)")
                     
             except Exception as e:
                 st.error(f"❌ Error loading restaurants: {e}")
