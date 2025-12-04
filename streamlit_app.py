@@ -1,5 +1,5 @@
 # ============================================
-# Restaurant Dashboard - Group02 Streamlit App (Styled)
+# Restaurant Dashboard - Group02 Streamlit App (Dark Theme)
 # ============================================
 
 # Block 1: Import required libraries
@@ -19,7 +19,7 @@ st.set_page_config(
 )
 
 # ----------------------------------------------------------
-# Custom CSS for colors and fonts
+# Custom CSS for dark mode and blue/white accents
 # ----------------------------------------------------------
 st.markdown("""
     <style>
@@ -27,13 +27,13 @@ st.markdown("""
 
     html, body, [class*="css"]  {
         font-family: 'Montserrat', sans-serif;
-        background-color: #f0f8ff;  /* Light blue background */
-        color: #333333;
+        background-color: #000000;  /* Black background */
+        color: #ffffff;  /* Default text color white */
     }
 
     /* Sidebar styling */
     .css-1d391kg {  /* sidebar container */
-        background-color: #00796b;  /* Teal sidebar */
+        background-color: #0d47a1;  /* Dark blue sidebar */
         color: white;
     }
     .css-1d391kg .stRadio label {
@@ -42,12 +42,12 @@ st.markdown("""
 
     /* Main headers */
     h1, h2, h3, h4 {
-        color: #ff7043;  /* Orange headers */
+        color: #2196f3;  /* Bright blue headers */
     }
 
     /* Buttons */
     .stButton>button {
-        background-color: #ff7043;
+        background-color: #2196f3;
         color: white;
         border-radius: 10px;
         padding: 0.5rem 1rem;
@@ -55,20 +55,27 @@ st.markdown("""
         border: none;
     }
     .stButton>button:hover {
-        background-color: #ff5722;
+        background-color: #1976d2;
         color: white;
     }
 
     /* Tables */
     .dataframe tbody tr:hover {
-        background-color: #b2dfdb;
+        background-color: #1e88e5; /* Blue highlight on hover */
+        color: white;
+    }
+
+    /* Sidebar info boxes */
+    .stInfo {
+        background-color: #1565c0;
+        color: white;
     }
 
     </style>
 """, unsafe_allow_html=True)
 
 # ----------------------------------------------------------
-# Block 3: Database connection (UPDATED FOR group02)
+# Block 3: Database connection
 # ----------------------------------------------------------
 try:
     connection = mysql.connector.connect(
@@ -107,7 +114,7 @@ if page == "Homepage":
         <h1 style="text-align:center; margin-bottom:0;">
             🍽️ Dallas Restaurants Dashboard
         </h1>
-        <p style="text-align:center; font-size:18px; margin-top:0;">
+        <p style="text-align:center; font-size:18px; margin-top:0; color:#ffffff;">
             Explore, analyze, and visualize restaurant data across Dallas.
         </p>
     """, unsafe_allow_html=True)
@@ -145,7 +152,7 @@ if page == "Homepage":
 
     st.write("---")
     st.markdown(
-        "<p style='text-align:center; color:#555555;'>Built by Group02 • Powered by Streamlit & MySQL</p>",
+        "<p style='text-align:center; color:#bbbbbb;'>Built by Group02 • Powered by Streamlit & MySQL</p>",
         unsafe_allow_html=True
     )
 
@@ -190,14 +197,14 @@ elif page == "Restaurant Map":
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
                     zoom_start=11,
-                    tiles="CartoDB Positron"
+                    tiles="CartoDB Dark_Matter"  # Dark-themed map
                 )
                 for _, row in df.iterrows():
                     folium.Marker(
                         [row["latitude"], row["longitude"]],
                         popup=row["name"],
                         tooltip=row["name"],
-                        icon=folium.Icon(color="orange", icon="info-sign")
+                        icon=folium.Icon(color="blue", icon="info-sign")
                     ).add_to(m)
                 st_folium(m, height=600, width=None)
                 st.success(f"Mapped {len(df)} restaurants successfully!")
