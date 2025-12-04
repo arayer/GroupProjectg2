@@ -168,31 +168,30 @@ elif page == "Restaurant Map":
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurant coordinates found.")
+                st.warning("No restaurant coordinates found")
             else:
-                # Map centered on average coordinates
+                # Use lighter map tiles for better visibility
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
-                    zoom_start=11,
-                    tiles="CartoDB Dark_Matter"
+                    zoom_start=12,
+                    tiles="CartoDB Positron"  # light map tiles
                 )
 
-                # Marker colors by price
+                # Marker colors by price range
                 price_color_map = {
-                    "$": "#64b5f6",
-                    "$$": "#2196f3",
-                    "$$$": "#0d47a1",
-                    "$$$$": "#00bcd4"
+                    "$": "lightblue",
+                    "$$": "blue",
+                    "$$$": "darkblue",
+                    "$$$$": "purple"
                 }
 
-                # Add markers
                 for _, row in df.iterrows():
-                    color = price_color_map.get(row["price_symbol"], "#2196f3")  # default blue
+                    color = price_color_map.get(row["price_symbol"], "blue")
                     folium.Marker(
-                        [row["latitude"], row["longitude"]],
+                        location=[row["latitude"], row["longitude"]],
                         popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
-                        icon=folium.Icon(color="blue", icon="info-sign", icon_color=color)
+                        icon=folium.Icon(color=color, icon="cutlery", prefix="fa")
                     ).add_to(m)
 
                 st_folium(m, height=600, width=None)
