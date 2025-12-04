@@ -130,8 +130,8 @@ if page == "Homepage":
     )
 
 
-# ============================================
-# PAGE 2 — RESTAURANT TABLE (simplified price filter buttons)
+## ============================================
+# PAGE 2 — RESTAURANT TABLE (with active filter highlight)
 # ============================================
 elif page == "Restaurant Table":
     st.header("📋 Restaurant Table")
@@ -151,19 +151,24 @@ elif page == "Restaurant Table":
             df = pd.read_sql(query, connection)
             st.success(f"Loaded {len(df)} restaurants")
 
+            # Initialize session state for filter
+            if "filter_price" not in st.session_state:
+                st.session_state.filter_price = "All"
+
             # Price filter buttons
             st.markdown("### Filter by Price")
-            filter_price = "All"
             col_all, col_1, col_2, col_3 = st.columns(4)
 
             if col_all.button("All"):
-                filter_price = "All"
+                st.session_state.filter_price = "All"
             if col_1.button("$"):
-                filter_price = "$"
+                st.session_state.filter_price = "$"
             if col_2.button("$$"):
-                filter_price = "$$"
+                st.session_state.filter_price = "$$"
             if col_3.button("$$$"):
-                filter_price = "$$$"
+                st.session_state.filter_price = "$$$"
+
+            filter_price = st.session_state.filter_price
 
             # Apply filter
             if filter_price != "All":
@@ -172,11 +177,11 @@ elif page == "Restaurant Table":
             # Show only desired columns
             st.dataframe(df[["name", "description", "website"]], use_container_width=True)
 
-            if filter_price != "All":
-                st.info(f"Showing {len(df)} restaurants with price {filter_price}")
+            st.info(f"Showing {len(df)} restaurants with price '{filter_price}'")
 
         except Exception as e:
             st.error(f"Query failed: {e}")
+
 
 
 # ============================================
