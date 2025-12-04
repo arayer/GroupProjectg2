@@ -235,8 +235,54 @@ elif page == "Restaurant Search":
 
 
 
-# ============================================ # PAGE 3 — RESTAURANT MAP # ============================================ elif page == "Restaurant Map": st.header("🗺️ Restaurant Map") st.markdown("---") if not db_connected: st.error("Database connection unavailable.") else: try: # Fetch restaurant names and coordinates query = """ SELECT name, latitude, longitude FROM Restaurants WHERE latitude IS NOT NULL AND longitude IS NOT NULL; """ df = pd.read_sql(query, connection) if df.empty: st.warning("No restaurant coordinates found.") else: import folium from streamlit_folium import st_folium # Create a Folium map centered on the average coordinates m = folium.Map( location=[df.latitude.mean(), df.longitude.mean()], zoom_start=11, tiles="CartoDB Positron" ) # Add markers for each restaurant for _, row in df.iterrows(): folium.Marker( [row["latitude"], row["longitude"]], popup=row["name"], tooltip=row["name"], icon=folium.Icon(color="pink", icon="info-sign") ).add_to(m) # Display map in Streamlit st_folium(m, height=600, width=None) st.success(f"Mapped {len(df)} restaurants successfully!") except Exception as e: st.error(f"Map query failed: {e}")
+# ============================================
+#  PAGE 3 — RESTAURANT MAP
+# ============================================
+elif page == "Restaurant Map":
+    
+    st.header("🗺️ Restaurant Map")
+    st.markdown("---")
 
+    if not db_connected:
+        st.error("Database connection unavailable.")
+    else:
+        try:
+            # Fetch restaurant names and coordinates
+            query = """
+                SELECT name, latitude, longitude
+                FROM Restaurants
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+            """
+            df = pd.read_sql(query, connection)
+
+            if df.empty:
+                st.warning("No restaurant coordinates found.")
+            else:
+                import folium
+                from streamlit_folium import st_folium
+
+                # Create a Folium map centered on the average coordinates
+                m = folium.Map(
+                    location=[df.latitude.mean(), df.longitude.mean()],
+                    zoom_start=11,
+                    tiles="CartoDB Positron"
+                )
+
+                # Add markers for each restaurant
+                for _, row in df.iterrows():
+                    folium.Marker(
+                        [row["latitude"], row["longitude"]],
+                        popup=row["name"],
+                        tooltip=row["name"],
+                        icon=folium.Icon(color="pink", icon="info-sign")
+                    ).add_to(m)
+
+                # Display map in Streamlit
+                st_folium(m, height=600, width=None)
+                st.success(f"Mapped {len(df)} restaurants successfully!")
+
+        except Exception as e:
+            st.error(f"Map query failed: {e}")
 
 
 # ============================================
