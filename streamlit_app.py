@@ -131,7 +131,7 @@ if page == "Homepage":
 
 
 # ============================================
-# PAGE 2 — RESTAURANT TABLE (price filter buttons)
+# PAGE 2 — RESTAURANT TABLE (price filter buttons with styled buttons)
 # ============================================
 elif page == "Restaurant Table":
     st.header("📋 Restaurant Table")
@@ -149,39 +149,42 @@ elif page == "Restaurant Table":
                 LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id;
             """
             df = pd.read_sql(query, connection)
-
             st.success(f"Loaded {len(df)} restaurants")
 
-            # Style the price filter buttons: white background, black text
-            st.markdown("""
+            # Price filter buttons using st.columns
+            st.markdown("### Filter by Price")
+            filter_price = "All"
+            col_all, col_1, col_2, col_3, col_4 = st.columns(5)
+
+            # Custom CSS for buttons
+            button_css = """
                 <style>
-                div[data-baseweb="radio"] > div > label > div {
-                    background-color: white !important;
-                    color: black !important;
+                div.stButton > button {
+                    background-color: white;
+                    color: black;
                     border-radius: 8px;
-                    padding: 0.4rem 0.8rem;
-                    margin-right: 5px;
+                    padding: 0.4rem 1rem;
                     font-weight: bold;
                     border: 1px solid #ccc;
                 }
-                div[data-baseweb="radio"] > div > label > div:hover {
-                    background-color: #f0f0f0 !important;  /* Slight gray on hover */
-                    color: black !important;
-                }
-                div[data-baseweb="radio"] input:checked + div {
-                    background-color: white !important;
-                    color: black !important;
-                    border: 2px solid #000;  /* Add border to indicate selection */
+                div.stButton > button:hover {
+                    background-color: #f0f0f0;
+                    color: black;
                 }
                 </style>
-            """, unsafe_allow_html=True)
+            """
+            st.markdown(button_css, unsafe_allow_html=True)
 
-            # Price filter buttons
-            filter_price = st.radio(
-                "Filter by Price",
-                options=["All", "$", "$$", "$$$", "$$$$"],
-                horizontal=True
-            )
+            if col_all.button("All"):
+                filter_price = "All"
+            if col_1.button("$"):
+                filter_price = "$"
+            if col_2.button("$$"):
+                filter_price = "$$"
+            if col_3.button("$$$"):
+                filter_price = "$$$"
+            if col_4.button("$$$$"):
+                filter_price = "$$$$"
 
             # Apply filter
             if filter_price != "All":
@@ -195,7 +198,6 @@ elif page == "Restaurant Table":
 
         except Exception as e:
             st.error(f"Query failed: {e}")
-
 
 
 # ============================================
