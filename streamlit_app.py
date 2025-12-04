@@ -167,10 +167,7 @@ elif page == "Restaurant Table":
                     font-weight: bold;
                     border: 1px solid #ccc;
                 }
-                div.stButton > button:hover {
-                    background-color: #f0f0f0;
-                    color: black;
-                }
+            
                 </style>
             """
             st.markdown(button_css, unsafe_allow_html=True)
@@ -183,8 +180,7 @@ elif page == "Restaurant Table":
                 filter_price = "$$"
             if col_3.button("$$$"):
                 filter_price = "$$$"
-            if col_4.button("$$$$"):
-                filter_price = "$$$$"
+        
 
             # Apply filter
             if filter_price != "All":
