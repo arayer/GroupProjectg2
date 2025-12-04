@@ -50,6 +50,14 @@ st.markdown("""
     .delete-button>button:hover {
         background-color: #d32f2f;
     }
+    
+    .restore-button>button {
+        background-color: #4caf50;
+        color: white;
+    }
+    .restore-button>button:hover {
+        background-color: #388e3c;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -78,6 +86,38 @@ except Error as e:
     st.sidebar.error(f"❌ DB Connection Failed: {e}")
     db_connected = False
     connection = None
+
+# ----------------------------------------------------------
+# Helper function to check if is_active column exists
+# ----------------------------------------------------------
+def ensure_is_active_column():
+    """Add is_active column if it doesn't exist"""
+    try:
+        cursor = connection.cursor()
+        # Check if column exists
+        cursor.execute("""
+            SELECT COUNT(*) 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'group02' 
+            AND TABLE_NAME = 'Restaurants' 
+            AND COLUMN_NAME = 'is_active'
+        """)
+        exists = cursor.fetchone()[0]
+        
+        if not exists:
+            # Add the column with default value TRUE
+            cursor.execute("""
+                ALTER TABLE Restaurants 
+                ADD COLUMN is_active BOOLEAN DEFAULT TRUE
+            """)
+            connection.commit()
+            st.sidebar.info("✅ Added is_active column to database")
+        
+        cursor.close()
+        return True
+    except Error as e:
+        st.sidebar.warning(f"Note: is_active column setup - {e}")
+        return False
 
 # ----------------------------------------------------------
 # Sidebar Navigation
@@ -116,7 +156,7 @@ if page == "Home":
             - 🗂️ Browse and filter restaurant data  
             - ➕ Add new restaurant entries  
             - 📊 Create insights and summaries  
-            - 🗑️ Manage and delete restaurant records
+            - 🗃️ Archive/restore restaurant records (soft delete)
 
             Use the sidebar to navigate.
         """)
@@ -132,7 +172,7 @@ if page == "Home":
     with feat1: st.markdown("### 🗺️ Interactive Map")
     with feat2: st.markdown("### 📋 Restaurant Table")
     with feat3: st.markdown("### ➕ Add New Data")
-    with feat4: st.markdown("### 🗑️ Manage Records")
+    with feat4: st.markdown("### 🗃️ Archive Manager")
     st.write("---")
     st.markdown(
         "<p style='text-align:center; color:#bbbbbb;'>Built by Group02 • Powered by Streamlit & MySQL</p>",
@@ -151,7 +191,10 @@ elif page == "Restaurant Search":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch all restaurant data with price and cuisine info
+            # Ensure is_active column exists
+            ensure_is_active_column()
+            
+            # Fetch all ACTIVE restaurant data with price and cuisine info
             query = """
                 SELECT r.restaurant_id, r.name, r.description, r.website, pr.price_symbol,
                        GROUP_CONCAT(ct.cuisine_name) AS cuisines
@@ -160,10 +203,11 @@ elif page == "Restaurant Search":
                 LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
                 LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
                 LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
+                WHERE r.is_active = TRUE
                 GROUP BY r.restaurant_id, r.name, r.description, r.website, pr.price_symbol
             """
             df = pd.read_sql(query, connection)
-            st.success(f"Loaded {len(df)} restaurants")
+            st.success(f"Loaded {len(df)} active restaurants")
 
             # Initialize session state for filters
             if "filter_price" not in st.session_state:
@@ -257,18 +301,21 @@ elif page == "Find Food Near Me!":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch restaurant names, coordinates, and price symbol
+            # Ensure is_active column exists
+            ensure_is_active_column()
+            
+            # Fetch ACTIVE restaurant names, coordinates, and price symbol
             query = """
                 SELECT r.name, r.latitude, r.longitude, pr.price_symbol
                 FROM Restaurants r
                 LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
                 LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
-                WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL;
+                WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL AND r.is_active = TRUE;
             """
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurant coordinates found")
+                st.warning("No active restaurant coordinates found")
             else:
                 import folium
                 from streamlit_folium import st_folium
@@ -300,7 +347,7 @@ elif page == "Find Food Near Me!":
 
                 # Display map in Streamlit
                 st_folium(m, height=600, width=None)
-                st.success(f"Mapped {len(df)} restaurants successfully!")
+                st.success(f"Mapped {len(df)} active restaurants successfully!")
 
                 # Add text explanation for marker colors
                 st.markdown("""
@@ -315,24 +362,30 @@ elif page == "Find Food Near Me!":
 
 
 # ============================================
-# PAGE 4 — MANAGE RESTAURANTS (DELETE BY CUISINE)
+# PAGE 4 — MANAGE RESTAURANTS (SOFT DELETE)
 # ============================================
 elif page == "Manage Restaurants":
-    st.header("🗑️ Manage Restaurants")
+    st.header("🗃️ Manage Restaurants")
     st.markdown("---")
 
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
-        # Create tabs for different management functions
-        tab1, tab2 = st.tabs(["Delete by Cuisine Type", "View All Restaurants"])
+        # Ensure is_active column exists
+        ensure_is_active_column()
         
+        # Create tabs for different management functions
+        tab1, tab2, tab3 = st.tabs(["Archive Restaurants", "Restore Archived", "View All Status"])
+        
+        # ============================================
+        # TAB 1: ARCHIVE (SOFT DELETE)
+        # ============================================
         with tab1:
-            st.subheader("Delete Restaurants by Cuisine")
-            st.info("ℹ️ Select a cuisine type to see which restaurants would be affected. Changes are NOT permanent until you click 'Confirm Delete'.")
+            st.subheader("📦 Archive Restaurants")
+            st.info("ℹ️ Archiving removes restaurants from active listings but preserves all data. You can restore them anytime!")
             
             try:
-                # Fetch all restaurants with cuisine info
+                # Fetch all ACTIVE restaurants
                 query = """
                     SELECT r.restaurant_id, r.name, r.description, pr.price_symbol,
                            GROUP_CONCAT(ct.cuisine_name) AS cuisines
@@ -341,167 +394,287 @@ elif page == "Manage Restaurants":
                     LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
                     LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
                     LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
+                    WHERE r.is_active = TRUE
                     GROUP BY r.restaurant_id, r.name, r.description, pr.price_symbol
                     ORDER BY r.name
                 """
                 df = pd.read_sql(query, connection)
                 
                 if df.empty:
-                    st.info("No restaurants found in the database.")
+                    st.info("No active restaurants to archive.")
                 else:
-                    # Get unique cuisines
-                    all_cuisines = sorted(df["cuisines"].dropna().str.split(",").explode().str.strip().unique())
+                    st.success(f"📊 {len(df)} active restaurants available")
                     
-                    # Cuisine selector
-                    selected_cuisine = st.selectbox(
-                        "Select Cuisine Type to Delete:",
-                        options=["-- Select a Cuisine --"] + all_cuisines,
-                        key="cuisine_selector"
-                    )
+                    # Add filter options
+                    st.markdown("### Filter Options (optional)")
+                    col1, col2 = st.columns(2)
                     
-                    if selected_cuisine != "-- Select a Cuisine --":
-                        # Filter restaurants with selected cuisine
-                        matching_restaurants = df[
-                            df["cuisines"].apply(
-                                lambda x: selected_cuisine in [c.strip() for c in x.split(",")] if pd.notna(x) else False
+                    with col1:
+                        filter_cuisine = st.selectbox(
+                            "Filter by Cuisine:",
+                            ["All Cuisines"] + sorted(df["cuisines"].dropna().str.split(",").explode().str.strip().unique())
+                        )
+                    
+                    with col2:
+                        filter_price = st.selectbox(
+                            "Filter by Price:",
+                            ["All Prices"] + sorted(df["price_symbol"].dropna().unique().tolist())
+                        )
+                    
+                    # Apply filters
+                    filtered_df = df.copy()
+                    if filter_cuisine != "All Cuisines":
+                        filtered_df = filtered_df[
+                            filtered_df["cuisines"].apply(
+                                lambda x: filter_cuisine in [c.strip() for c in x.split(",")] if pd.notna(x) else False
                             )
                         ]
+                    if filter_price != "All Prices":
+                        filtered_df = filtered_df[filtered_df["price_symbol"] == filter_price]
+                    
+                    st.markdown("---")
+                    st.markdown(f"### Select Restaurants to Archive ({len(filtered_df)} shown)")
+                    
+                    # Initialize session state for selections
+                    if "selected_to_archive" not in st.session_state:
+                        st.session_state.selected_to_archive = []
+                    
+                    # Select All / Deselect All buttons
+                    col1, col2, col3 = st.columns([1, 1, 3])
+                    with col1:
+                        if st.button("✅ Select All Visible"):
+                            st.session_state.selected_to_archive = filtered_df["restaurant_id"].tolist()
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Deselect All"):
+                            st.session_state.selected_to_archive = []
+                            st.rerun()
+                    
+                    # Display restaurants with checkboxes
+                    st.markdown("---")
+                    for idx, row in filtered_df.iterrows():
+                        col1, col2, col3, col4 = st.columns([0.5, 2, 1.5, 2])
                         
-                        if matching_restaurants.empty:
-                            st.warning(f"No restaurants found with cuisine type: {selected_cuisine}")
-                        else:
-                            st.markdown("---")
-                            st.markdown(f"### Preview: Restaurants with '{selected_cuisine}' Cuisine")
-                            st.warning(f"⚠️ {len(matching_restaurants)} restaurant(s) will be deleted if you confirm:")
-                            
-                            # Display matching restaurants
-                            st.dataframe(
-                                matching_restaurants[["restaurant_id", "name", "price_symbol", "cuisines", "description"]],
-                                use_container_width=True
+                        with col1:
+                            is_selected = st.checkbox(
+                                "",
+                                value=row["restaurant_id"] in st.session_state.selected_to_archive,
+                                key=f"archive_cb_{row['restaurant_id']}"
                             )
-                            
-                            st.markdown("---")
-                            
-                            # Two-step confirmation process
-                            col1, col2, col3 = st.columns([2, 2, 2])
-                            
-                            with col1:
-                                # First confirmation checkbox
-                                confirm_preview = st.checkbox(
-                                    f"I want to delete all {len(matching_restaurants)} {selected_cuisine} restaurants",
-                                    key="confirm_checkbox"
-                                )
-                            
-                            with col2:
-                                # Second confirmation with text input
-                                if confirm_preview:
-                                    confirm_text = st.text_input(
-                                        "Type 'CONFIRM' to proceed:",
-                                        key="confirm_text_input"
-                                    )
-                                else:
-                                    confirm_text = ""
-                            
-                            # Delete button row
-                            st.markdown("---")
-                            btn_col1, btn_col2, btn_col3 = st.columns([1, 1, 3])
-                            
-                            with btn_col1:
-                                delete_enabled = confirm_preview and (confirm_text.upper() == "CONFIRM")
-                                
-                                if st.button(
-                                    "🗑️ Confirm Delete", 
-                                    disabled=not delete_enabled,
-                                    type="primary",
-                                    key="delete_confirm_btn"
-                                ):
-                                    try:
-                                        cursor = connection.cursor()
-                                        deleted_count = 0
-                                        deleted_names = []
+                            if is_selected and row["restaurant_id"] not in st.session_state.selected_to_archive:
+                                st.session_state.selected_to_archive.append(row["restaurant_id"])
+                            elif not is_selected and row["restaurant_id"] in st.session_state.selected_to_archive:
+                                st.session_state.selected_to_archive.remove(row["restaurant_id"])
+                        
+                        with col2:
+                            st.write(f"**{row['name']}**")
+                        with col3:
+                            st.write(f"{row['price_symbol']} • {row['cuisines']}")
+                        with col4:
+                            st.write(f"_{row['description'][:50]}..._" if len(str(row['description'])) > 50 else f"_{row['description']}_")
+                    
+                    # Archive button
+                    st.markdown("---")
+                    if len(st.session_state.selected_to_archive) > 0:
+                        st.warning(f"⚠️ {len(st.session_state.selected_to_archive)} restaurant(s) selected for archiving")
+                        
+                        col1, col2, col3 = st.columns([1, 1, 3])
+                        with col1:
+                            if st.button("📦 Archive Selected", type="primary", key="archive_btn"):
+                                try:
+                                    cursor = connection.cursor()
+                                    archived_count = 0
+                                    
+                                    for restaurant_id in st.session_state.selected_to_archive:
+                                        cursor.execute(
+                                            "UPDATE Restaurants SET is_active = FALSE WHERE restaurant_id = %s",
+                                            (restaurant_id,)
+                                        )
+                                        archived_count += 1
+                                    
+                                    connection.commit()
+                                    cursor.close()
+                                    
+                                    st.success(f"✅ Successfully archived {archived_count} restaurant(s)!")
+                                    st.session_state.selected_to_archive = []
+                                    st.balloons()
+                                    
+                                    if st.button("🔄 Refresh", key="refresh_archive"):
+                                        st.rerun()
                                         
-                                        # Delete each matching restaurant
-                                        for _, row in matching_restaurants.iterrows():
-                                            restaurant_id = row['restaurant_id']
-                                            restaurant_name = row['name']
-                                            
-                                            # Delete related records first (foreign key constraints)
-                                            cursor.execute("DELETE FROM RestaurantCuisines WHERE restaurant_id = %s", (restaurant_id,))
-                                            cursor.execute("DELETE FROM RestaurantPricing WHERE restaurant_id = %s", (restaurant_id,))
-                                            
-                                            # Delete the restaurant
-                                            cursor.execute("DELETE FROM Restaurants WHERE restaurant_id = %s", (restaurant_id,))
-                                            
-                                            deleted_count += 1
-                                            deleted_names.append(restaurant_name)
-                                        
-                                        connection.commit()
-                                        cursor.close()
-                                        
-                                        st.success(f"✅ Successfully deleted {deleted_count} {selected_cuisine} restaurant(s)!")
-                                        
-                                        with st.expander("View deleted restaurants"):
-                                            for name in deleted_names:
-                                                st.write(f"• {name}")
-                                        
-                                        st.balloons()
-                                        
-                                        # Refresh button
-                                        if st.button("🔄 Refresh Page", key="refresh_after_delete"):
-                                            st.rerun()
-                                            
-                                    except Error as e:
-                                        connection.rollback()
-                                        st.error(f"❌ Failed to delete restaurants: {e}")
-                            
-                            with btn_col2:
-                                if st.button("↩️ Cancel", key="cancel_btn"):
-                                    st.info("Delete operation cancelled. No changes were made.")
-                                    st.rerun()
+                                except Error as e:
+                                    connection.rollback()
+                                    st.error(f"❌ Failed to archive: {e}")
+                        
+                        with col2:
+                            if st.button("Cancel"):
+                                st.session_state.selected_to_archive = []
+                                st.rerun()
+                    else:
+                        st.info("👆 Select restaurants above to archive them")
                         
             except Exception as e:
-                st.error(f"❌ Error loading restaurants: {e}")
+                st.error(f"❌ Error: {e}")
         
+        # ============================================
+        # TAB 2: RESTORE
+        # ============================================
         with tab2:
-            st.subheader("All Restaurants in Database")
+            st.subheader("♻️ Restore Archived Restaurants")
+            st.info("ℹ️ Restore archived restaurants to make them active again in searches and on the map.")
+            
             try:
+                # Fetch all INACTIVE restaurants
                 query = """
-                    SELECT r.restaurant_id, r.name, r.description, r.website, pr.price_symbol,
+                    SELECT r.restaurant_id, r.name, r.description, pr.price_symbol,
                            GROUP_CONCAT(ct.cuisine_name) AS cuisines
                     FROM Restaurants r
                     LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
                     LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
                     LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
                     LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
-                    GROUP BY r.restaurant_id, r.name, r.description, r.website, pr.price_symbol
+                    WHERE r.is_active = FALSE
+                    GROUP BY r.restaurant_id, r.name, r.description, pr.price_symbol
                     ORDER BY r.name
                 """
                 df = pd.read_sql(query, connection)
                 
                 if df.empty:
-                    st.info("No restaurants found in the database.")
+                    st.info("No archived restaurants to restore.")
                 else:
-                    st.success(f"📊 Total Restaurants: {len(df)}")
+                    st.success(f"📊 {len(df)} archived restaurants available")
                     
-                    # Show cuisine breakdown
-                    cuisine_counts = df["cuisines"].dropna().str.split(",").explode().str.strip().value_counts()
+                    # Initialize session state for restore selections
+                    if "selected_to_restore" not in st.session_state:
+                        st.session_state.selected_to_restore = []
                     
-                    col1, col2 = st.columns([2, 1])
-                    
+                    # Select All / Deselect All buttons
+                    col1, col2, col3 = st.columns([1, 1, 3])
                     with col1:
-                        st.dataframe(
-                            df[["restaurant_id", "name", "price_symbol", "cuisines", "description"]],
-                            use_container_width=True,
-                            height=400
-                        )
-                    
+                        if st.button("✅ Select All", key="restore_select_all"):
+                            st.session_state.selected_to_restore = df["restaurant_id"].tolist()
+                            st.rerun()
                     with col2:
-                        st.markdown("### Cuisine Breakdown")
-                        for cuisine, count in cuisine_counts.items():
-                            st.write(f"**{cuisine}:** {count} restaurant(s)")
+                        if st.button("❌ Deselect All", key="restore_deselect_all"):
+                            st.session_state.selected_to_restore = []
+                            st.rerun()
+                    
+                    # Display archived restaurants with checkboxes
+                    st.markdown("---")
+                    for idx, row in df.iterrows():
+                        col1, col2, col3, col4 = st.columns([0.5, 2, 1.5, 2])
+                        
+                        with col1:
+                            is_selected = st.checkbox(
+                                "",
+                                value=row["restaurant_id"] in st.session_state.selected_to_restore,
+                                key=f"restore_cb_{row['restaurant_id']}"
+                            )
+                            if is_selected and row["restaurant_id"] not in st.session_state.selected_to_restore:
+                                st.session_state.selected_to_restore.append(row["restaurant_id"])
+                            elif not is_selected and row["restaurant_id"] in st.session_state.selected_to_restore:
+                                st.session_state.selected_to_restore.remove(row["restaurant_id"])
+                        
+                        with col2:
+                            st.write(f"**{row['name']}**")
+                        with col3:
+                            st.write(f"{row['price_symbol']} • {row['cuisines']}")
+                        with col4:
+                            st.write(f"_{row['description'][:50]}..._" if len(str(row['description'])) > 50 else f"_{row['description']}_")
+                    
+                    # Restore button
+                    st.markdown("---")
+                    if len(st.session_state.selected_to_restore) > 0:
+                        st.success(f"✅ {len(st.session_state.selected_to_restore)} restaurant(s) selected for restoration")
+                        
+                        col1, col2, col3 = st.columns([1, 1, 3])
+                        with col1:
+                            if st.button("♻️ Restore Selected", type="primary", key="restore_btn"):
+                                try:
+                                    cursor = connection.cursor()
+                                    restored_count = 0
+                                    
+                                    for restaurant_id in st.session_state.selected_to_restore:
+                                        cursor.execute(
+                                            "UPDATE Restaurants SET is_active = TRUE WHERE restaurant_id = %s",
+                                            (restaurant_id,)
+                                        )
+                                        restored_count += 1
+                                    
+                                    connection.commit()
+                                    cursor.close()
+                                    
+                                    st.success(f"✅ Successfully restored {restored_count} restaurant(s)!")
+                                    st.session_state.selected_to_restore = []
+                                    st.balloons()
+                                    
+                                    if st.button("🔄 Refresh", key="refresh_restore"):
+                                        st.rerun()
+                                        
+                                except Error as e:
+                                    connection.rollback()
+                                    st.error(f"❌ Failed to restore: {e}")
+                        
+                        with col2:
+                            if st.button("Cancel", key="restore_cancel"):
+                                st.session_state.selected_to_restore = []
+                                st.rerun()
+                    else:
+                        st.info("👆 Select restaurants above to restore them")
+                        
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+        
+        # ============================================
+        # TAB 3: VIEW ALL
+        # ============================================
+        with tab3:
+            st.subheader("📊 All Restaurants - Status Overview")
+            
+            try:
+                # Fetch ALL restaurants (active and inactive)
+                query = """
+                    SELECT r.restaurant_id, r.name, r.description, r.is_active, pr.price_symbol,
+                           GROUP_CONCAT(ct.cuisine_name) AS cuisines
+                    FROM Restaurants r
+                    LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                    LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                    LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
+                    LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
+                    GROUP BY r.restaurant_id, r.name, r.description, r.is_active, pr.price_symbol
+                    ORDER BY r.is_active DESC, r.name
+                """
+                df = pd.read_sql(query, connection)
+                
+                if df.empty:
+                    st.info("No restaurants found in database.")
+                else:
+                    active_count = len(df[df["is_active"] == True])
+                    archived_count = len(df[df["is_active"] == False])
+                    
+                    # Summary metrics
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Restaurants", len(df))
+                    with col2:
+                        st.metric("Active", active_count, delta=None)
+                    with col3:
+                        st.metric("Archived", archived_count, delta=None)
+                    
+                    st.markdown("---")
+                    
+                    # Add status indicator to dataframe for display
+                    df["status"] = df["is_active"].apply(lambda x: "✅ Active" if x else "📦 Archived")
+                    
+                    # Display full table
+                    st.dataframe(
+                        df[["restaurant_id", "name", "status", "price_symbol", "cuisines", "description"]],
+                        use_container_width=True,
+                        height=500
+                    )
                     
             except Exception as e:
-                st.error(f"❌ Error loading restaurants: {e}")
+                st.error(f"❌ Error: {e}")
 
 
 # ============================================
