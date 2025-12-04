@@ -236,17 +236,18 @@ elif page == "Restaurant Search":
 
 
 # ============================================
-# PAGE 3 — RESTAURANT MAP
+#  PAGE 3 — RESTAURANT MAP
 # ============================================
-elif page == "Find Food Near Me!":
-    st.header("🗺️ Find Food Near Me!")
-    st.markdown("---")
+elif page == "Restaurant Map":
     
+    st.header("🗺️ Restaurant Map")
+    st.markdown("---")
+
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
         try:
-            # Join Restaurants with PriceRanges to get price symbol
+            # Fetch restaurant names and coordinates with price
             query = """
                 SELECT r.name, r.latitude, r.longitude, pr.price_symbol
                 FROM Restaurants r
@@ -257,13 +258,17 @@ elif page == "Find Food Near Me!":
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurant coordinates found")
+                st.warning("No restaurant coordinates found.")
             else:
-                # Use lighter map tiles for better visibility
+                import folium
+                from streamlit_folium import st_folium
+                from branca.element import Template, MacroElement
+
+                # Map centered on average coordinates
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
                     zoom_start=12,
-                    tiles="CartoDB Positron"  # light map tiles
+                    tiles="CartoDB Positron"
                 )
 
                 # Marker colors by price range
@@ -274,15 +279,39 @@ elif page == "Find Food Near Me!":
                     "$$$$": "purple"
                 }
 
+                # Add markers
                 for _, row in df.iterrows():
                     color = price_color_map.get(row["price_symbol"], "blue")
                     folium.Marker(
-                        location=[row["latitude"], row["longitude"]],
+                        [row["latitude"], row["longitude"]],
                         popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
                         icon=folium.Icon(color=color, icon="cutlery", prefix="fa")
                     ).add_to(m)
 
+                # Add legend
+                legend_html = """
+                {% macro html(this, kwargs) %}
+                <div style="
+                    position: fixed; 
+                    bottom: 50px; left: 50px; width: 150px; height: 120px; 
+                    border:2px solid grey; z-index:9999; font-size:14px;
+                    background-color:white;
+                    padding: 10px;
+                    ">
+                    <b>Price Legend</b><br>
+                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:lightblue"></i>&nbsp;$<br>
+                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:blue"></i>&nbsp;$$<br>
+                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:darkblue"></i>&nbsp;$$$<br>
+                    &nbsp;<i class="fa fa-map-marker fa-2x" style="color:purple"></i>&nbsp;$$$$
+                </div>
+                {% endmacro %}
+                """
+                macro = MacroElement()
+                macro._template = Template(legend_html)
+                m.get_root().add_child(macro)
+
+                # Display map
                 st_folium(m, height=600, width=None)
                 st.success(f"Mapped {len(df)} restaurants successfully!")
 
