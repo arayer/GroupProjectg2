@@ -179,7 +179,7 @@ elif page == "Restaurant Map":
                         [row["latitude"], row["longitude"]],
                         popup=row["name"],
                         tooltip=row["name"],
-                        icon=folium.Icon(color="pink", icon="info-sign")
+                        icon=folium.Icon(color="orange", icon="info-sign")
                     ).add_to(m)
 
                 # Display map in Streamlit
