@@ -131,7 +131,7 @@ if page == "Homepage":
 
 
 # ============================================
-# PAGE 2 — RESTAURANT TABLE (price filter buttons)
+# PAGE 2 — RESTAURANT TABLE (simplified price filter buttons)
 # ============================================
 elif page == "Restaurant Table":
     st.header("📋 Restaurant Table")
@@ -151,30 +151,11 @@ elif page == "Restaurant Table":
             df = pd.read_sql(query, connection)
             st.success(f"Loaded {len(df)} restaurants")
 
-            # Price filter buttons using st.columns (4 buttons only)
+            # Price filter buttons
             st.markdown("### Filter by Price")
             filter_price = "All"
             col_all, col_1, col_2, col_3 = st.columns(4)
 
-            # Custom CSS for uniform buttons
-            st.markdown("""
-                <style>
-                div.stButton > button {
-                    background-color: white;
-                    color: black;
-                    border-radius: 8px;
-                    padding: 0.4rem 1rem;
-                    font-weight: bold;
-                    border: 1px solid #ccc;
-                }
-                div.stButton > button:hover {
-                    background-color: #f0f0f0;
-                    color: black;
-                }
-                </style>
-            """, unsafe_allow_html=True)
-
-            # Buttons
             if col_all.button("All"):
                 filter_price = "All"
             if col_1.button("$"):
