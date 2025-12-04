@@ -14,21 +14,22 @@ from streamlit_folium import st_folium
 # Custom CSS for gradient background & theme
 # --------------------------------------------
 # Custom CSS for dark gradient background and white text
+# Custom CSS for solid dark blue background and white text
 st.markdown("""
     <style>
     /* Import Google font */
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
 
-    /* Body gradient: dark blue to black */
+    /* Body background and text */
     body, .main {
         font-family: 'Montserrat', sans-serif;
-        background: linear-gradient(to bottom, #0d1b2a, #000000);
+        background-color: #0a1f44;  /* solid dark blue */
         color: white;
     }
 
-    /* Sidebar dark gradient */
+    /* Sidebar background */
     .css-1d391kg {
-        background: linear-gradient(to bottom, #0d1b2a, #000000);
+        background-color: #0a1f44;
         color: white;
     }
 
@@ -58,6 +59,7 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 
 # --------------------------------------------
