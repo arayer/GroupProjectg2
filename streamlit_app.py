@@ -152,36 +152,55 @@ elif page == "Restaurant Table":
 elif page == "Restaurant Map":
     st.header("🗺️ Restaurant Map")
     st.markdown("---")
+    
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
         try:
+            # Join Restaurants with PriceRanges to get price symbol
             query = """
-                SELECT name, latitude, longitude
-                FROM Restaurants
-                WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
+                SELECT r.name, r.latitude, r.longitude, pr.price_symbol
+                FROM Restaurants r
+                LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                WHERE r.latitude IS NOT NULL AND r.longitude IS NOT NULL;
             """
             df = pd.read_sql(query, connection)
+
             if df.empty:
                 st.warning("No restaurant coordinates found.")
             else:
-                # Dark-themed map
+                # Map centered on average coordinates
                 m = folium.Map(
                     location=[df.latitude.mean(), df.longitude.mean()],
                     zoom_start=11,
                     tiles="CartoDB Dark_Matter"
                 )
+
+                # Marker colors by price
+                price_color_map = {
+                    "$": "#64b5f6",
+                    "$$": "#2196f3",
+                    "$$$": "#0d47a1",
+                    "$$$$": "#00bcd4"
+                }
+
+                # Add markers
                 for _, row in df.iterrows():
+                    color = price_color_map.get(row["price_symbol"], "#2196f3")  # default blue
                     folium.Marker(
                         [row["latitude"], row["longitude"]],
-                        popup=row["name"],
+                        popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
-                        icon=folium.Icon(color="blue", icon="info-sign")
+                        icon=folium.Icon(color="blue", icon="info-sign", icon_color=color)
                     ).add_to(m)
+
                 st_folium(m, height=600, width=None)
                 st.success(f"Mapped {len(df)} restaurants successfully!")
+
         except Exception as e:
             st.error(f"Map query failed: {e}")
+
 
 # ============================================
 # CLOSE CONNECTION
