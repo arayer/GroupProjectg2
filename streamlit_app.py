@@ -131,7 +131,7 @@ if page == "Home":
 
 
 # ============================================
-# PAGE 2 — RESTAURANT SEARCH (multi-cuisine filter)
+# PAGE 2 — RESTAURANT SEARCH (dropdown for price)
 # ============================================
 elif page == "Restaurant Search":
     st.header("📋 Restaurant Search")
@@ -165,7 +165,7 @@ elif page == "Restaurant Search":
 
             # --- Filters layout ---
             st.markdown("### Filter Options")
-            col1, col2, col3 = st.columns([1, 1, 2])
+            col1, col2 = st.columns([2, 2])
 
             with col1:
                 # Text input for restaurant name
@@ -176,17 +176,14 @@ elif page == "Restaurant Search":
                 )
 
             with col2:
-                # Price filter buttons
-                if st.button("All"):
-                    st.session_state.filter_price = "All"
-                if st.button("$"):
-                    st.session_state.filter_price = "$"
-                if st.button("$$"):
-                    st.session_state.filter_price = "$$"
-                if st.button("$$$"):
-                    st.session_state.filter_price = "$$$"
+                # Dropdown for price
+                price_options = ["All", "$", "$$", "$$$"]
+                selected_price = st.selectbox(
+                    "Price Range:",
+                    options=price_options,
+                    index=price_options.index(st.session_state.filter_price)
+                )
 
-            with col3:
                 # Multi-select for cuisines
                 all_cuisines = sorted(df["cuisines"].dropna().str.split(",").explode().unique())
                 selected_cuisines = st.multiselect(
@@ -197,8 +194,8 @@ elif page == "Restaurant Search":
 
             # Store filters in session state
             st.session_state.filter_name = name_input
+            st.session_state.filter_price = selected_price
             st.session_state.filter_cuisines = selected_cuisines
-            filter_price = st.session_state.filter_price
 
             # --- Search button ---
             search_button = st.button("🔍 Get Results")
@@ -212,13 +209,15 @@ elif page == "Restaurant Search":
                     filtered_df = filtered_df[filtered_df["name"].str.contains(name_input, case=False, na=False)]
 
                 # Filter by price
-                if filter_price != "All":
-                    filtered_df = filtered_df[filtered_df["price_symbol"] == filter_price]
+                if selected_price != "All":
+                    filtered_df = filtered_df[filtered_df["price_symbol"] == selected_price]
 
                 # Filter by cuisines (match any selected)
                 if selected_cuisines:
                     filtered_df = filtered_df[
-                        filtered_df["cuisines"].apply(lambda x: any(c in x.split(",") for c in selected_cuisines) if pd.notna(x) else False)
+                        filtered_df["cuisines"].apply(
+                            lambda x: any(c in x.split(",") for c in selected_cuisines) if pd.notna(x) else False
+                        )
                     ]
 
                 # Show results
@@ -233,6 +232,7 @@ elif page == "Restaurant Search":
 
         except Exception as e:
             st.error(f"❌ Query failed: {e}")
+
 
 
 # ============================================
