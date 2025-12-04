@@ -238,9 +238,9 @@ elif page == "Restaurant Search":
 # ============================================
 #  PAGE 3 — RESTAURANT MAP
 # ============================================
-elif page == "Restaurant Map":
+elif page == "Find Food Near Me!":
     
-    st.header("🗺️ Restaurant Map")
+    st.header("🗺️ Find Food Near Me")
     st.markdown("---")
 
     if not db_connected:
