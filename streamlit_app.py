@@ -141,7 +141,7 @@ elif page == "Restaurant Table":
 
 
 # ============================================
-#  PAGE 3 — RESTAURANT MAP (ADDRESS-BASED)
+#  PAGE 3 — RESTAURANT MAP
 # ============================================
 elif page == "Restaurant Map":
     
@@ -150,81 +150,41 @@ elif page == "Restaurant Map":
 
     if not db_connected:
         st.error("Database connection unavailable.")
-
     else:
         try:
-            # Fetch address data
+            # Fetch restaurant names and coordinates
             query = """
-                SELECT name, street_address, city, state, zip_code
-                FROM Restaurants;
+                SELECT name, latitude, longitude
+                FROM Restaurants
+                WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
             """
             df = pd.read_sql(query, connection)
 
             if df.empty:
-                st.warning("No restaurants found in the database.")
+                st.warning("No restaurant coordinates found.")
             else:
-                from geopy.geocoders import Nominatim
-                import time
+                import folium
+                from streamlit_folium import st_folium
 
-                # Initialize geolocator
-                geolocator = Nominatim(user_agent="dallas_restaurants_app")
-
-                # Combine address fields
-                df['full_address'] = (
-                    df['street_address'] + ', ' +
-                    df['city'] + ', ' +
-                    df['state'] + ' ' +
-                    df['zip_code']
+                # Create a Folium map centered on the average coordinates
+                m = folium.Map(
+                    location=[df.latitude.mean(), df.longitude.mean()],
+                    zoom_start=11,
+                    tiles="CartoDB Positron"
                 )
 
-                # Geocode addresses
-                latitudes = []
-                longitudes = []
+                # Add markers for each restaurant
+                for _, row in df.iterrows():
+                    folium.Marker(
+                        [row["latitude"], row["longitude"]],
+                        popup=row["name"],
+                        tooltip=row["name"],
+                        icon=folium.Icon(color="pink", icon="info-sign")
+                    ).add_to(m)
 
-                st.info("⏳ Geocoding addresses. This may take a few seconds...")
-                for addr in df['full_address']:
-                    try:
-                        location = geolocator.geocode(addr)
-                        if location:
-                            latitudes.append(location.latitude)
-                            longitudes.append(location.longitude)
-                        else:
-                            latitudes.append(None)
-                            longitudes.append(None)
-                        time.sleep(1)  # polite delay for Nominatim
-                    except:
-                        latitudes.append(None)
-                        longitudes.append(None)
-
-                df['latitude'] = latitudes
-                df['longitude'] = longitudes
-
-                # Drop rows that could not be geocoded
-                df = df.dropna(subset=['latitude', 'longitude'])
-
-                if df.empty:
-                    st.warning("No addresses could be geocoded.")
-                else:
-                    # Create map
-                    import folium
-                    from streamlit_folium import st_folium
-
-                    m = folium.Map(
-                        location=[df.latitude.mean(), df.longitude.mean()],
-                        zoom_start=11,
-                        tiles="CartoDB Positron"
-                    )
-
-                    for _, row in df.iterrows():
-                        folium.Marker(
-                            [row["latitude"], row["longitude"]],
-                            popup=row["name"],
-                            tooltip=row["name"],
-                            icon=folium.Icon(color="pink", icon="info-sign")
-                        ).add_to(m)
-
-                    st_folium(m, height=600, width=None)
-                    st.success(f"Mapped {len(df)} restaurants successfully!")
+                # Display map in Streamlit
+                st_folium(m, height=600, width=None)
+                st.success(f"Mapped {len(df)} restaurants successfully!")
 
         except Exception as e:
             st.error(f"Map query failed: {e}")
