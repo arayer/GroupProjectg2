@@ -141,9 +141,9 @@ elif page == "Restaurant Table":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch all restaurants with price symbol
+            # Fetch only necessary columns with price symbol
             query = """
-                SELECT r.*, pr.price_symbol
+                SELECT r.restaurant_id, r.name, r.description, r.website, pr.price_symbol
                 FROM Restaurants r
                 LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
                 LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id;
@@ -152,10 +152,26 @@ elif page == "Restaurant Table":
 
             st.success(f"Loaded {len(df)} restaurants")
 
+            # Style the price filter buttons
+            st.markdown("""
+                <style>
+                div[data-baseweb="radio"] > div > label > div {
+                    background-color: #2196f3 !important;
+                    color: white !important;
+                    border-radius: 8px;
+                    padding: 0.3rem 0.7rem;
+                    margin-right: 5px;
+                }
+                div[data-baseweb="radio"] > div > label > div:hover {
+                    background-color: #1976d2 !important;
+                    color: white !important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+
             # Price filter buttons
-            st.markdown("### Filter by Price")
             filter_price = st.radio(
-                "Select a price range:",
+                "Filter by Price",
                 options=["All", "$", "$$", "$$$", "$$$$"],
                 horizontal=True
             )
@@ -164,14 +180,14 @@ elif page == "Restaurant Table":
             if filter_price != "All":
                 df = df[df["price_symbol"] == filter_price]
 
-            st.dataframe(df, use_container_width=True)
+            # Show only desired columns
+            st.dataframe(df[["name", "description", "website"]], use_container_width=True)
 
             if filter_price != "All":
                 st.info(f"Showing {len(df)} restaurants with price {filter_price}")
 
         except Exception as e:
             st.error(f"Query failed: {e}")
-
 
 
 # ============================================
