@@ -152,18 +152,23 @@ elif page == "Restaurant Table":
 
             st.success(f"Loaded {len(df)} restaurants")
 
-            # Style the price filter buttons
+            # Style the price filter buttons: navy background, white text
             st.markdown("""
                 <style>
                 div[data-baseweb="radio"] > div > label > div {
-                    background-color: #2196f3 !important;
+                    background-color: #001f3f !important;  /* Navy */
                     color: white !important;
                     border-radius: 8px;
-                    padding: 0.3rem 0.7rem;
+                    padding: 0.4rem 0.8rem;
                     margin-right: 5px;
+                    font-weight: bold;
                 }
                 div[data-baseweb="radio"] > div > label > div:hover {
-                    background-color: #1976d2 !important;
+                    background-color: #001a35 !important;  /* Slightly darker navy on hover */
+                    color: white !important;
+                }
+                div[data-baseweb="radio"] input:checked + div {
+                    background-color: #001f3f !important;  /* Keep selected the same navy */
                     color: white !important;
                 }
                 </style>
@@ -188,6 +193,7 @@ elif page == "Restaurant Table":
 
         except Exception as e:
             st.error(f"Query failed: {e}")
+
 
 
 # ============================================
