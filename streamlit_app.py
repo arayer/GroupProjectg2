@@ -131,7 +131,7 @@ if page == "Home":
 
 
 # ============================================
-# PAGE 2 — RESTAURANT SEARCH (multi-filter with search button)
+# PAGE 2 — RESTAURANT SEARCH (multi-cuisine filter)
 # ============================================
 elif page == "Restaurant Search":
     st.header("📋 Restaurant Search")
@@ -141,77 +141,98 @@ elif page == "Restaurant Search":
         st.error("Database connection unavailable.")
     else:
         try:
-            # Fetch cuisine types for filter options
-            cuisine_query = "SELECT cuisine_id, cuisine_name FROM CuisineTypes ORDER BY cuisine_name;"
-            cuisine_df = pd.read_sql(cuisine_query, connection)
-            cuisine_options = ["All"] + cuisine_df["cuisine_name"].tolist()
+            # Fetch all restaurant data with price and cuisine info
+            query = """
+                SELECT r.restaurant_id, r.name, r.description, r.website, pr.price_symbol,
+                       GROUP_CONCAT(ct.cuisine_name) AS cuisines
+                FROM Restaurants r
+                LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
+                LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
+                GROUP BY r.restaurant_id, r.name, r.description, r.website, pr.price_symbol
+            """
+            df = pd.read_sql(query, connection)
+            st.success(f"Loaded {len(df)} restaurants")
 
-            # Fetch price symbols for filter options
-            price_query = "SELECT price_symbol FROM PriceRanges ORDER BY price_symbol;"
-            price_df = pd.read_sql(price_query, connection)
-            price_options = ["All"] + price_df["price_symbol"].tolist()
+            # Initialize session state for filters
+            if "filter_price" not in st.session_state:
+                st.session_state.filter_price = "All"
+            if "filter_name" not in st.session_state:
+                st.session_state.filter_name = ""
+            if "filter_cuisines" not in st.session_state:
+                st.session_state.filter_cuisines = []
 
-            # --- Filter Inputs ---
+            # --- Filters layout ---
             st.markdown("### Filter Options")
-            col1, col2, col3 = st.columns([2, 1, 1])
+            col1, col2, col3 = st.columns([1, 1, 2])
 
             with col1:
+                # Text input for restaurant name
                 name_input = st.text_input(
-                    "Restaurant Name Contains:",
-                    value="",
-                    placeholder="e.g., Pecan Lodge"
+                    "Restaurant Name:",
+                    value=st.session_state.filter_name,
+                    placeholder="Enter part of a name"
                 )
 
             with col2:
-                selected_price = st.selectbox("Price", price_options, index=0)
+                # Price filter buttons
+                if st.button("All"):
+                    st.session_state.filter_price = "All"
+                if st.button("$"):
+                    st.session_state.filter_price = "$"
+                if st.button("$$"):
+                    st.session_state.filter_price = "$$"
+                if st.button("$$$"):
+                    st.session_state.filter_price = "$$$"
 
             with col3:
-                selected_cuisine = st.selectbox("Cuisine", cuisine_options, index=0)
+                # Multi-select for cuisines
+                all_cuisines = sorted(df["cuisines"].dropna().str.split(",").explode().unique())
+                selected_cuisines = st.multiselect(
+                    "Cuisine Type(s):",
+                    options=all_cuisines,
+                    default=st.session_state.filter_cuisines
+                )
 
-            # Search button
+            # Store filters in session state
+            st.session_state.filter_name = name_input
+            st.session_state.filter_cuisines = selected_cuisines
+            filter_price = st.session_state.filter_price
+
+            # --- Search button ---
             search_button = st.button("🔍 Get Results")
 
-            # --- Search Results ---
-            st.markdown("### Search Results")
+            # --- Apply filters when search button is pressed ---
             if search_button:
-                # Base query
-                query = """
-                    SELECT r.name, r.description, r.website, pr.price_symbol, ct.cuisine_name
-                    FROM Restaurants r
-                    LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
-                    LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
-                    LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
-                    LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
-                    WHERE 1=1
-                """
+                filtered_df = df.copy()
 
-                # Filters
-                if name_input.strip():
-                    query += f" AND r.name LIKE '%{name_input.strip()}%'"
-                if selected_price != "All":
-                    query += f" AND pr.price_symbol = '{selected_price}'"
-                if selected_cuisine != "All":
-                    query += f" AND ct.cuisine_name = '{selected_cuisine}'"
+                # Filter by name
+                if name_input:
+                    filtered_df = filtered_df[filtered_df["name"].str.contains(name_input, case=False, na=False)]
 
-                query += " ORDER BY r.name;"
+                # Filter by price
+                if filter_price != "All":
+                    filtered_df = filtered_df[filtered_df["price_symbol"] == filter_price]
 
-                # Execute query
-                try:
-                    df = pd.read_sql(query, connection)
+                # Filter by cuisines (match any selected)
+                if selected_cuisines:
+                    filtered_df = filtered_df[
+                        filtered_df["cuisines"].apply(lambda x: any(c in x.split(",") for c in selected_cuisines) if pd.notna(x) else False)
+                    ]
 
-                    if not df.empty:
-                        st.success(f"✅ Found {len(df)} restaurant(s) matching your criteria")
-                        # Display only desired columns
-                        st.dataframe(df[["name", "description", "website"]], use_container_width=True)
-                    else:
-                        st.warning("⚠️ No restaurants found matching your criteria. Try adjusting your filters.")
-                except Exception as e:
-                    st.error(f"❌ Query error: {e}")
+                # Show results
+                if not filtered_df.empty:
+                    st.success(f"✅ Found {len(filtered_df)} restaurant(s) matching your criteria")
+                    st.dataframe(
+                        filtered_df[["name", "description", "website"]],
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("⚠️ No restaurants found. Try adjusting your filters.")
 
         except Exception as e:
-            st.error(f"❌ Failed to load filter options: {e}")
-
-
+            st.error(f"❌ Query failed: {e}")
 
 
 # ============================================
