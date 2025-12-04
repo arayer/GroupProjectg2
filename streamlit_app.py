@@ -78,7 +78,7 @@ st.sidebar.title("🍽️ Dallas Restaurants")
 st.sidebar.markdown("---")
 page = st.sidebar.radio(
     "Navigation",
-    ["Homepage", "Restaurant Table", "Restaurant Map"]
+    ["Home", "Restaurant Search", "Find Food Near Me!"]
 )
 st.sidebar.markdown("---")
 st.sidebar.info("Group02 • ITOM6265 • Dallas Restaurants Dashboard")
@@ -86,7 +86,7 @@ st.sidebar.info("Group02 • ITOM6265 • Dallas Restaurants Dashboard")
 # ============================================
 # PAGE 1 — HOMEPAGE
 # ============================================
-if page == "Homepage":
+if page == "Home":
     st.markdown("""
         <h1 style="text-align:center; margin-bottom:0;">
             🍽️ Dallas Restaurants Dashboard
@@ -133,8 +133,8 @@ if page == "Homepage":
 ## ============================================
 # PAGE 2 — RESTAURANT TABLE (with active filter highlight)
 # ============================================
-elif page == "Restaurant Table":
-    st.header("📋 Restaurant Table")
+elif page == "Restaurant Search":
+    st.header("📋 Restaurant Search")
     st.markdown("---")
 
     if not db_connected:
@@ -187,8 +187,8 @@ elif page == "Restaurant Table":
 # ============================================
 # PAGE 3 — RESTAURANT MAP
 # ============================================
-elif page == "Restaurant Map":
-    st.header("🗺️ Restaurant Map")
+elif page == "Find Food Near Me!":
+    st.header("🗺️ Find Food Near Me!")
     st.markdown("---")
     
     if not db_connected:
