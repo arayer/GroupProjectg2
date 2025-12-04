@@ -285,34 +285,25 @@ elif page == "Find Food Near Me!":
                         location=[row["latitude"], row["longitude"]],
                         popup=f"{row['name']} ({row['price_symbol']})",
                         tooltip=row["name"],
-                        icon=folium.Icon(color=color, icon="cutlery", prefix="fa")
+                        icon=folium.Icon(color=color, icon="info-sign")
                     ).add_to(m)
-
-                # Add simple legend (HTML div) to map
-                legend_html = """
-                <div style="
-                    position: fixed; 
-                    bottom: 50px; left: 50px; width: 140px; height: 110px; 
-                    background-color: white;
-                    border:2px solid grey; z-index:9999; font-size:14px;
-                    padding: 10px;
-                    opacity: 0.9;
-                ">
-                <b>Price Legend</b><br>
-                <i style='background:lightblue;width:10px;height:10px;display:inline-block'></i> $<br>
-                <i style='background:blue;width:10px;height:10px;display:inline-block'></i> $$<br>
-                <i style='background:darkblue;width:10px;height:10px;display:inline-block'></i> $$$<br>
-                <i style='background:purple;width:10px;height:10px;display:inline-block'></i> $$$$
-                </div>
-                """
-                m.get_root().html.add_child(folium.Element(legend_html))
 
                 # Display map in Streamlit
                 st_folium(m, height=600, width=None)
                 st.success(f"Mapped {len(df)} restaurants successfully!")
 
+                # Add text explanation for marker colors
+                st.markdown("""
+                    **Marker Color Key (Price Ranges):**  
+                    - Light Blue: $ (Budget-friendly)  
+                    - Blue: $$ (Moderate)  
+                    - Dark Blue: $$$ (Upscale)  
+                    - Purple: $$$$ (Fine Dining)  
+                """)
+                
         except Exception as e:
             st.error(f"Map query failed: {e}")
+
 
 
 # ============================================
