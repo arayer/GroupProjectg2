@@ -425,6 +425,7 @@ elif page == "Manage Restaurants":
             st.subheader("🔄 Update Existing Restaurant")
             st.info("Select a restaurant to edit (feature coming soon).")
 
+# ============================================
 # PAGE — MANAGE REVIEWS (SEPARATE PAGE)
 # ============================================
 elif page == "Manage Reviews":
@@ -477,6 +478,8 @@ elif page == "Manage Reviews":
                 date_col = candidate
                 break
 
+        has_user_id = "user_id" in colset
+
         review_tab1, review_tab2, review_tab3 = st.tabs(
             ["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"]
         )
@@ -513,7 +516,6 @@ elif page == "Manage Reviews":
                         col1, col2, col3 = st.columns([2, 1, 1])
                         with col1:
                             st.markdown(f"**{review['restaurant_name']}**")
-                            # We don't know if a name column exists in Reviews → show as Anonymous
                             st.markdown(f"*Reviewer: Anonymous*")
                         with col2:
                             if "rating" in reviews_df.columns:
@@ -531,6 +533,7 @@ elif page == "Manage Reviews":
         # =============== TAB 2: ADD REVIEW ===============
         with review_tab2:
             try:
+                # Get active restaurants
                 cursor = connection.cursor()
                 cursor.execute(
                     "SELECT restaurant_id, name FROM Restaurants WHERE is_active = TRUE ORDER BY name"
@@ -554,11 +557,53 @@ elif page == "Manage Reviews":
                         height=150,
                     )
 
+                    # Handle user_id if required by schema
+                    user_id_value = None
+                    if has_user_id:
+                        st.markdown("### Reviewer")
+                        st.caption(
+                            "Your Reviews table requires a `user_id`. "
+                            "Select a user from the Users table (if available) or enter an ID manually."
+                        )
+
+                        # Try to fetch Users table nicely, but fall back to manual entry if it fails
+                        users = []
+                        try:
+                            cursor = connection.cursor()
+                            cursor.execute("SELECT user_id, name FROM Users ORDER BY name")
+                            users = cursor.fetchall()
+                            cursor.close()
+                        except Exception:
+                            users = []
+
+                        if users:
+                            user_map = {
+                                f"{name} (ID {uid})": uid for uid, name in users
+                            }
+                            selected_user_label = st.selectbox(
+                                "Select Reviewer *", list(user_map.keys())
+                            )
+                            user_id_value = user_map[selected_user_label]
+                        else:
+                            user_id_value = st.number_input(
+                                "User ID * (no Users table found)",
+                                min_value=1,
+                                step=1,
+                                format="%d",
+                            )
+
                     if st.button("💾 Submit Review", type="primary"):
                         try:
-                            # Build dynamic INSERT for the existing columns
+                            # Build dynamic INSERT for existing columns
                             columns = ["restaurant_id", "rating"]
                             values = [selected_restaurant_id, rating]
+
+                            if has_user_id:
+                                if not user_id_value:
+                                    st.error("❌ Please select or enter a user ID.")
+                                    st.stop()
+                                columns.append("user_id")
+                                values.append(int(user_id_value))
 
                             if text_col is not None:
                                 columns.append(text_col)
