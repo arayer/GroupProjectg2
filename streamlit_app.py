@@ -522,9 +522,9 @@ elif page == "Manage Reviews":
                                 stars = "⭐" * int(review["rating"])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
                         with col3:
-                            if "review_date" in reviews_df.columns and pd.notna(review["review_date"]):
+                            if "review_date" in reviews_df.columns and pd.notna(review.get("review_date", None)):
                                 st.markdown(f"📅 {review['review_date']}")
-                        if "review_text" in reviews_df.columns and pd.notna(review["review_text"]):
+                        if "review_text" in reviews_df.columns and pd.notna(review.get("review_text", None)):
                             st.markdown(f"> {review['review_text']}")
                         st.markdown("---")
             except Exception as e:
@@ -561,21 +561,20 @@ elif page == "Manage Reviews":
                     user_id_value = None
                     can_submit = True
 
-                    if "user_id" in colset:
-                        st.markdown("### Reviewer")
+                    if has_user_id:
+                        st.markdown("### Reviewer (user_id)")
                         st.caption(
                             "Your Reviews table requires a `user_id` that matches a row in the Users table."
                         )
 
-                        # Try to fetch Users table; if empty, we block submission
                         users = []
                         try:
                             cursor = connection.cursor()
-                            cursor.execute("SELECT user_id, name FROM Users ORDER BY name")
-                            users = cursor.fetchall()
+                            cursor.execute("SELECT user_id FROM Users ORDER BY user_id")
+                            users = [row[0] for row in cursor.fetchall()]
                             cursor.close()
                         except Exception as e:
-                            st.error(f"❌ Could not load Users: {e}")
+                            st.error(f"❌ Could not load Users table: {e}")
                             users = []
 
                         if not users:
@@ -585,13 +584,9 @@ elif page == "Manage Reviews":
                             )
                             can_submit = False
                         else:
-                            user_map = {
-                                f"{name} (ID {uid})": uid for uid, name in users
-                            }
-                            selected_user_label = st.selectbox(
-                                "Select Reviewer *", list(user_map.keys())
+                            user_id_value = st.selectbox(
+                                "Select Reviewer (user_id) *", users
                             )
-                            user_id_value = user_map[selected_user_label]
 
                     if st.button("💾 Submit Review", type="primary"):
                         if not can_submit:
@@ -602,7 +597,10 @@ elif page == "Manage Reviews":
                             columns = ["restaurant_id", "rating"]
                             values = [selected_restaurant_id, rating]
 
-                            if "user_id" in colset:
+                            if has_user_id:
+                                if user_id_value is None:
+                                    st.error("❌ Please select a user_id.")
+                                    st.stop()
                                 columns.append("user_id")
                                 values.append(int(user_id_value))
 
@@ -688,7 +686,7 @@ elif page == "Manage Reviews":
                         with col2:
                             st.write(f"**{review['restaurant_name']}**")
                             st.write("*Reviewer: Anonymous*")
-                            if "review_date" in reviews_df.columns and pd.notna(review["review_date"]):
+                            if "review_date" in reviews_df.columns and pd.notna(review.get("review_date", None)):
                                 st.write(f"📅 {review['review_date']}")
                         with col3:
                             if "rating" in reviews_df.columns:
