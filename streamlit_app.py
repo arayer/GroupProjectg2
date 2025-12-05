@@ -557,26 +557,34 @@ elif page == "Manage Reviews":
                         height=150,
                     )
 
-                    # Handle user_id if required by schema
+                    # ---- handle user_id if required by schema ----
                     user_id_value = None
-                    if has_user_id:
+                    can_submit = True
+
+                    if "user_id" in colset:
                         st.markdown("### Reviewer")
                         st.caption(
-                            "Your Reviews table requires a `user_id`. "
-                            "Select a user from the Users table (if available) or enter an ID manually."
+                            "Your Reviews table requires a `user_id` that matches a row in the Users table."
                         )
 
-                        # Try to fetch Users table nicely, but fall back to manual entry if it fails
+                        # Try to fetch Users table; if empty, we block submission
                         users = []
                         try:
                             cursor = connection.cursor()
                             cursor.execute("SELECT user_id, name FROM Users ORDER BY name")
                             users = cursor.fetchall()
                             cursor.close()
-                        except Exception:
+                        except Exception as e:
+                            st.error(f"❌ Could not load Users: {e}")
                             users = []
 
-                        if users:
+                        if not users:
+                            st.error(
+                                "❌ No users found in the `Users` table.\n\n"
+                                "You must insert at least one row into `Users` before adding reviews."
+                            )
+                            can_submit = False
+                        else:
                             user_map = {
                                 f"{name} (ID {uid})": uid for uid, name in users
                             }
@@ -584,24 +592,17 @@ elif page == "Manage Reviews":
                                 "Select Reviewer *", list(user_map.keys())
                             )
                             user_id_value = user_map[selected_user_label]
-                        else:
-                            user_id_value = st.number_input(
-                                "User ID * (no Users table found)",
-                                min_value=1,
-                                step=1,
-                                format="%d",
-                            )
 
                     if st.button("💾 Submit Review", type="primary"):
+                        if not can_submit:
+                            st.stop()
+
                         try:
                             # Build dynamic INSERT for existing columns
                             columns = ["restaurant_id", "rating"]
                             values = [selected_restaurant_id, rating]
 
-                            if has_user_id:
-                                if not user_id_value:
-                                    st.error("❌ Please select or enter a user ID.")
-                                    st.stop()
+                            if "user_id" in colset:
                                 columns.append("user_id")
                                 values.append(int(user_id_value))
 
