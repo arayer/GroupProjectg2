@@ -452,6 +452,19 @@ elif page == "Manage Reviews":
             st.error(f"❌ Could not inspect Reviews table: {e}")
             st.stop()
 
+        # --- DEBUG BLOCK: Inspect Users table (columns + sample rows) ---
+        st.write("🔎 Debug: Users table preview")
+        try:
+            cursor = connection.cursor()
+            cursor.execute("SELECT * FROM Users LIMIT 5")
+            rows = cursor.fetchall()
+            col_names = [desc[0] for desc in cursor.description]
+            cursor.close()
+            st.write("👤 Users columns:", col_names)
+            st.write("👤 Sample rows:", rows)
+        except Error as e:
+            st.error(f"❌ Error reading Users table: {e}")
+
         colset = set(review_columns)
 
         # Required columns for this page to work
