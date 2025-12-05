@@ -10,6 +10,14 @@ from mysql.connector import Error
 import folium
 from streamlit_folium import st_folium
 
+# Block 2: Page configuration (MUST BE FIRST)
+st.set_page_config(
+    page_title="Dallas Restaurants App",
+    page_icon="🍽️",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 # ----------------------------------------------------------
 # Custom CSS for fonts and minor tweaks
 # ----------------------------------------------------------
@@ -60,14 +68,6 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
-
-# Block 2: Page configuration
-st.set_page_config(
-    page_title="Dallas Restaurants App",
-    page_icon="🍽️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 # ----------------------------------------------------------
 # Database connection
@@ -162,9 +162,9 @@ if page == "Home":
         """)
     with col2:
         st.image(
-            "https://images.unsplash.com/photo-1555992336-cbfdbc69af72",
+            "drelogo.png",
             caption="Dallas Restaurant Explorer",
-            use_column_width=True
+            use_container_width=True
         )
     st.write("---")
     st.subheader("Features")
@@ -375,7 +375,7 @@ elif page == "Manage Restaurants":
         ensure_is_active_column()
         
         # Create tabs for different management functions
-        tab1, tab2, tab3 = st.tabs(["Archive Restaurants", "Restore Archived", "View All Status"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Archive Restaurants", "Restore Archived", "View All Status", "➕ Add New Restaurant", "🔄 Update Existing Restaurant"])
         
         # ============================================
         # TAB 1: ARCHIVE (SOFT DELETE)
@@ -672,6 +672,422 @@ elif page == "Manage Restaurants":
                         use_container_width=True,
                         height=500
                     )
+                    
+            except Exception as e:
+                st.error(f"❌ Error: {e}")
+        
+        # ============================================
+        # TAB 4: CREATE NEW RESTAURANT
+        # ============================================
+        with tab4:
+            st.subheader("➕ Add New Restaurant")
+            st.info("ℹ️ Fill in the form below to add a new restaurant to the database.")
+            
+            try:
+                # Create form columns
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    rest_name = st.text_input(
+                        "Restaurant Name *",
+                        placeholder="e.g., Joe's Pizza",
+                        help="Required field"
+                    )
+                    rest_street = st.text_input(
+                        "Street Address *",
+                        placeholder="e.g., 123 Main St",
+                        help="Required field"
+                    )
+                    rest_zip = st.text_input(
+                        "ZIP Code *",
+                        placeholder="e.g., 75201",
+                        help="Required field"
+                    )
+                
+                with col2:
+                    rest_city = st.text_input(
+                        "City",
+                        value="Dallas",
+                        placeholder="City name"
+                    )
+                    rest_state = st.text_input(
+                        "State",
+                        value="TX",
+                        max_chars=2,
+                        placeholder="State code"
+                    )
+                    rest_phone = st.text_input(
+                        "Phone Number",
+                        placeholder="(555) 123-4567"
+                    )
+                
+                # Second row for description and website
+                col3, col4 = st.columns(2)
+                with col3:
+                    rest_description = st.text_area(
+                        "Description",
+                        placeholder="Brief description of the restaurant",
+                        height=80
+                    )
+                with col4:
+                    rest_website = st.text_input(
+                        "Website URL",
+                        placeholder="https://example.com"
+                    )
+                    rest_latitude = st.number_input(
+                        "Latitude",
+                        value=32.7767,
+                        format="%.6f",
+                        help="Decimal latitude (Dallas avg: 32.7767)"
+                    )
+                    rest_longitude = st.number_input(
+                        "Longitude",
+                        value=-96.7970,
+                        format="%.6f",
+                        help="Decimal longitude (Dallas avg: -96.7970)"
+                    )
+                
+                # Price range
+                price_options = ["$", "$$", "$$$", "$$$$"]
+                selected_price = st.selectbox(
+                    "Price Range",
+                    options=price_options
+                )
+                
+                # Cuisines - fetch from database
+                try:
+                    cursor = connection.cursor()
+                    cursor.execute("SELECT cuisine_id, cuisine_name FROM CuisineTypes ORDER BY cuisine_name")
+                    cuisines_data = cursor.fetchall()
+                    cursor.close()
+                    
+                    cuisine_dict = {name: cid for cid, name in cuisines_data}
+                    cuisine_names = list(cuisine_dict.keys())
+                    
+                    selected_cuisines = st.multiselect(
+                        "Cuisines",
+                        options=cuisine_names,
+                        help="Select one or more cuisine types"
+                    )
+                except Exception as e:
+                    st.error(f"Could not load cuisines: {e}")
+                    selected_cuisines = []
+                
+                st.markdown("---")
+                
+                # Save button
+                col1, col2, col3 = st.columns([1, 1, 2])
+                
+                with col1:
+                    if st.button("💾 Save Restaurant", type="primary", key="create_restaurant_btn"):
+                        # Validation
+                        if not rest_name.strip():
+                            st.error("❌ Restaurant name is required!")
+                        elif not rest_street.strip():
+                            st.error("❌ Street address is required!")
+                        elif not rest_zip.strip():
+                            st.error("❌ ZIP code is required!")
+                        else:
+                            try:
+                                cursor = connection.cursor()
+                                
+                                # Insert into Restaurants table
+                                insert_restaurant = """
+                                    INSERT INTO Restaurants (name, street_address, city, state, zip_code, phone, website, description, latitude, longitude, is_active)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, TRUE)
+                                """
+                                cursor.execute(insert_restaurant, (
+                                    rest_name.strip(),
+                                    rest_street.strip(),
+                                    rest_city.strip() if rest_city.strip() else "Dallas",
+                                    rest_state.strip() if rest_state.strip() else "TX",
+                                    rest_zip.strip(),
+                                    rest_phone.strip() if rest_phone.strip() else None,
+                                    rest_website.strip() if rest_website.strip() else None,
+                                    rest_description.strip() if rest_description.strip() else None,
+                                    rest_latitude if rest_latitude != 0.0 else None,
+                                    rest_longitude if rest_longitude != 0.0 else None
+                                ))
+                                
+                                restaurant_id = cursor.lastrowid
+                                
+                                # Insert price range
+                                if selected_price:
+                                    try:
+                                        cursor.execute(
+                                            "SELECT price_range_id FROM PriceRanges WHERE price_symbol = %s",
+                                            (selected_price,)
+                                        )
+                                        price_id = cursor.fetchone()
+                                        if price_id:
+                                            cursor.execute(
+                                                "INSERT INTO RestaurantPricing (restaurant_id, price_range_id) VALUES (%s, %s)",
+                                                (restaurant_id, price_id[0])
+                                            )
+                                    except Exception as e:
+                                        st.warning(f"Could not add price range: {e}")
+                                
+                                # Insert cuisines
+                                if selected_cuisines:
+                                    for cuisine_name in selected_cuisines:
+                                        try:
+                                            cuisine_id = cuisine_dict[cuisine_name]
+                                            cursor.execute(
+                                                "INSERT INTO RestaurantCuisines (restaurant_id, cuisine_id) VALUES (%s, %s)",
+                                                (restaurant_id, cuisine_id)
+                                            )
+                                        except Exception as e:
+                                            st.warning(f"Could not add cuisine {cuisine_name}: {e}")
+                                
+                                connection.commit()
+                                cursor.close()
+                                
+                                st.success(f"✅ Successfully added restaurant: **{rest_name}**")
+                                st.balloons()
+                                
+                                # Clear form by rerunning
+                                if st.button("➕ Add Another Restaurant"):
+                                    st.rerun()
+                                    
+                            except Error as e:
+                                connection.rollback()
+                                st.error(f"❌ Database error: {e}")
+                            except Exception as e:
+                                st.error(f"❌ Error: {e}")
+                
+                with col2:
+                    if st.button("Clear Form"):
+                        st.rerun()
+                
+            except Exception as e:
+                st.error(f"❌ Error loading form: {e}")
+        
+        # ============================================
+        # TAB 5: UPDATE EXISTING RESTAURANT
+        # ============================================
+        with tab5:
+            st.subheader("🔄 Update Existing Restaurant")
+            st.info("ℹ️ Select a restaurant and modify its details.")
+            
+            try:
+                # Fetch all active restaurants
+                cursor = connection.cursor()
+                cursor.execute("SELECT restaurant_id, name FROM Restaurants WHERE is_active = TRUE ORDER BY name")
+                restaurants = cursor.fetchall()
+                cursor.close()
+                
+                if not restaurants:
+                    st.warning("No active restaurants to edit.")
+                else:
+                    # Restaurant selector
+                    restaurant_options = {name: rid for rid, name in restaurants}
+                    selected_restaurant_name = st.selectbox(
+                        "Select Restaurant to Edit",
+                        options=list(restaurant_options.keys())
+                    )
+                    
+                    selected_restaurant_id = restaurant_options[selected_restaurant_name]
+                    
+                    # Fetch current restaurant data
+                    cursor = connection.cursor()
+                    cursor.execute("""
+                        SELECT r.name, r.street_address, r.city, r.state, r.zip_code, r.phone, 
+                               r.website, r.description, r.latitude, r.longitude, pr.price_symbol,
+                               GROUP_CONCAT(ct.cuisine_name) AS cuisines
+                        FROM Restaurants r
+                        LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                        LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                        LEFT JOIN RestaurantCuisines rc ON r.restaurant_id = rc.restaurant_id
+                        LEFT JOIN CuisineTypes ct ON rc.cuisine_id = ct.cuisine_id
+                        WHERE r.restaurant_id = %s
+                        GROUP BY r.restaurant_id
+                    """, (selected_restaurant_id,))
+                    
+                    result = cursor.fetchone()
+                    cursor.close()
+                    
+                    if result:
+                        (name, street, city, state, zip_code, phone, website, description, lat, lng, price, cuisines_str) = result
+                        
+                        # Create form columns
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            rest_name = st.text_input(
+                                "Restaurant Name *",
+                                value=name or "",
+                                help="Required field"
+                            )
+                            rest_street = st.text_input(
+                                "Street Address *",
+                                value=street or "",
+                                help="Required field"
+                            )
+                            rest_zip = st.text_input(
+                                "ZIP Code *",
+                                value=zip_code or "",
+                                help="Required field"
+                            )
+                        
+                        with col2:
+                            rest_city = st.text_input(
+                                "City",
+                                value=city or "Dallas"
+                            )
+                            rest_state = st.text_input(
+                                "State",
+                                value=state or "TX",
+                                max_chars=2
+                            )
+                            rest_phone = st.text_input(
+                                "Phone Number",
+                                value=phone or ""
+                            )
+                        
+                        # Second row
+                        col3, col4 = st.columns(2)
+                        with col3:
+                            rest_description = st.text_area(
+                                "Description",
+                                value=description or "",
+                                height=80
+                            )
+                        with col4:
+                            rest_website = st.text_input(
+                                "Website URL",
+                                value=website or ""
+                            )
+                            rest_latitude = st.number_input(
+                                "Latitude",
+                                value=float(lat) if lat else 32.7767,
+                                format="%.6f"
+                            )
+                            rest_longitude = st.number_input(
+                                "Longitude",
+                                value=float(lng) if lng else -96.7970,
+                                format="%.6f"
+                            )
+                        
+                        # Price range
+                        price_options = ["$", "$$", "$$$", "$$$$"]
+                        selected_price = st.selectbox(
+                            "Price Range",
+                            options=price_options,
+                            index=price_options.index(price) if price in price_options else 0
+                        )
+                        
+                        # Cuisines - fetch from database
+                        cursor = connection.cursor()
+                        cursor.execute("SELECT cuisine_id, cuisine_name FROM CuisineTypes ORDER BY cuisine_name")
+                        cuisines_data = cursor.fetchall()
+                        cursor.close()
+                        
+                        cuisine_dict = {name: cid for cid, name in cuisines_data}
+                        cuisine_names = list(cuisine_dict.keys())
+                        
+                        # Pre-select current cuisines
+                        current_cuisines = [c.strip() for c in cuisines_str.split(",")] if cuisines_str else []
+                        current_cuisines = [c for c in current_cuisines if c in cuisine_names]
+                        
+                        selected_cuisines = st.multiselect(
+                            "Cuisines",
+                            options=cuisine_names,
+                            default=current_cuisines
+                        )
+                        
+                        st.markdown("---")
+                        
+                        # Update button
+                        col1, col2, col3 = st.columns([1, 1, 2])
+                        
+                        with col1:
+                            if st.button("💾 Update Restaurant", type="primary", key="update_restaurant_btn"):
+                                # Validation
+                                if not rest_name.strip():
+                                    st.error("❌ Restaurant name is required!")
+                                elif not rest_street.strip():
+                                    st.error("❌ Street address is required!")
+                                elif not rest_zip.strip():
+                                    st.error("❌ ZIP code is required!")
+                                else:
+                                    try:
+                                        cursor = connection.cursor()
+                                        
+                                        # Update Restaurants table
+                                        update_restaurant = """
+                                            UPDATE Restaurants 
+                                            SET name=%s, street_address=%s, city=%s, state=%s, zip_code=%s, phone=%s, 
+                                                website=%s, description=%s, latitude=%s, longitude=%s
+                                            WHERE restaurant_id=%s
+                                        """
+                                        cursor.execute(update_restaurant, (
+                                            rest_name.strip(),
+                                            rest_street.strip(),
+                                            rest_city.strip() if rest_city.strip() else "Dallas",
+                                            rest_state.strip() if rest_state.strip() else "TX",
+                                            rest_zip.strip(),
+                                            rest_phone.strip() if rest_phone.strip() else None,
+                                            rest_website.strip() if rest_website.strip() else None,
+                                            rest_description.strip() if rest_description.strip() else None,
+                                            rest_latitude if rest_latitude != 0.0 else None,
+                                            rest_longitude if rest_longitude != 0.0 else None,
+                                            selected_restaurant_id
+                                        ))
+                                        
+                                        # Update price range
+                                        if selected_price:
+                                            try:
+                                                cursor.execute(
+                                                    "SELECT price_range_id FROM PriceRanges WHERE price_symbol = %s",
+                                                    (selected_price,)
+                                                )
+                                                price_id = cursor.fetchone()
+                                                if price_id:
+                                                    # Delete existing price
+                                                    cursor.execute(
+                                                        "DELETE FROM RestaurantPricing WHERE restaurant_id = %s",
+                                                        (selected_restaurant_id,)
+                                                    )
+                                                    # Insert new price
+                                                    cursor.execute(
+                                                        "INSERT INTO RestaurantPricing (restaurant_id, price_range_id) VALUES (%s, %s)",
+                                                        (selected_restaurant_id, price_id[0])
+                                                    )
+                                            except Exception as e:
+                                                st.warning(f"Could not update price range: {e}")
+                                        
+                                        # Update cuisines
+                                        try:
+                                            # Delete existing cuisines
+                                            cursor.execute(
+                                                "DELETE FROM RestaurantCuisines WHERE restaurant_id = %s",
+                                                (selected_restaurant_id,)
+                                            )
+                                            # Insert new cuisines
+                                            for cuisine_name in selected_cuisines:
+                                                cuisine_id = cuisine_dict[cuisine_name]
+                                                cursor.execute(
+                                                    "INSERT INTO RestaurantCuisines (restaurant_id, cuisine_id) VALUES (%s, %s)",
+                                                    (selected_restaurant_id, cuisine_id)
+                                                )
+                                        except Exception as e:
+                                            st.warning(f"Could not update cuisines: {e}")
+                                        
+                                        connection.commit()
+                                        cursor.close()
+                                        
+                                        st.success(f"✅ Successfully updated: **{rest_name}**")
+                                        st.balloons()
+                                        
+                                    except Error as e:
+                                        connection.rollback()
+                                        st.error(f"❌ Database error: {e}")
+                                    except Exception as e:
+                                        st.error(f"❌ Error: {e}")
+                        
+                        with col2:
+                            if st.button("Refresh"):
+                                st.rerun()
                     
             except Exception as e:
                 st.error(f"❌ Error: {e}")
