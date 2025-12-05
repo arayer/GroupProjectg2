@@ -426,7 +426,7 @@ elif page == "Manage Restaurants":
             st.info("Select a restaurant to edit (feature coming soon).")
 
 # ============================================
-# PAGE 5 — MANAGE REVIEWS (NEW SEPARATE PAGE)
+# PAGE 5 — MANAGE REVIEWS (SEPARATE PAGE)
 # ============================================
 elif page == "Manage Reviews":
     st.header("⭐ Manage Reviews")
@@ -436,12 +436,16 @@ elif page == "Manage Reviews":
     else:
         review_tab1, review_tab2, review_tab3 = st.tabs(["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"])
         
-        # View Reviews
+        # =============== TAB 1: VIEW REVIEWS ===============
         with review_tab1:
             try:
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
-                           rv.rating, rv.review_text, rv.review_date
+                    SELECT rv.review_id,
+                           r.name AS restaurant_name,
+                           rv.name AS reviewer_name,
+                           rv.rating,
+                           rv.review_text,
+                           rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
                     ORDER BY rv.review_date DESC
@@ -467,24 +471,28 @@ elif page == "Manage Reviews":
             except Exception as e:
                 st.error(f"❌ Error: {e}")
         
-        # Add Review
+        # =============== TAB 2: ADD REVIEW ===============
         with review_tab2:
             try:
                 cursor = connection.cursor()
                 cursor.execute("SELECT restaurant_id, name FROM Restaurants WHERE is_active = TRUE ORDER BY name")
                 restaurants = cursor.fetchall()
                 cursor.close()
+                
                 if not restaurants:
                     st.warning("No active restaurants.")
                 else:
+                    # map restaurant name -> id
                     restaurant_options = {name: rid for rid, name in restaurants}
                     selected_restaurant = st.selectbox("Select Restaurant *", list(restaurant_options.keys()))
                     selected_restaurant_id = restaurant_options[selected_restaurant]
+                    
                     col1, col2 = st.columns(2)
                     with col1:
                         reviewer_name = st.text_input("Your Name *", placeholder="e.g., John Doe")
                     with col2:
                         rating = st.slider("Rating *", 1, 5, 5)
+                    
                     review_text = st.text_area("Review Text", placeholder="Share your experience...", height=150)
                     
                     if st.button("💾 Submit Review", type="primary"):
@@ -494,7 +502,7 @@ elif page == "Manage Reviews":
                             try:
                                 cursor = connection.cursor()
                                 cursor.execute("""
-                                    INSERT INTO Reviews (restaurant_id, reviewer_name, rating, review_text, review_date)
+                                    INSERT INTO Reviews (restaurant_id, name, rating, review_text, review_date)
                                     VALUES (%s, %s, %s, %s, CURDATE())
                                 """, (selected_restaurant_id, reviewer_name, rating, review_text or None))
                                 connection.commit()
@@ -507,18 +515,23 @@ elif page == "Manage Reviews":
             except Exception as e:
                 st.error(f"❌ Error: {e}")
         
-        # Delete Review
+        # =============== TAB 3: DELETE REVIEW ===============
         with review_tab3:
             st.warning("⚠️ This action cannot be undone!")
             try:
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
-                           rv.rating, rv.review_text, rv.review_date
+                    SELECT rv.review_id,
+                           r.name AS restaurant_name,
+                           rv.name AS reviewer_name,
+                           rv.rating,
+                           rv.review_text,
+                           rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
                     ORDER BY rv.review_date DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
+                
                 if reviews_df.empty:
                     st.info("No reviews to delete.")
                 else:
@@ -573,7 +586,3 @@ elif page == "Manage Reviews":
                                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Error: {e}")
-
-# Close connection
-if connection and connection.is_connected():
-    connection.close()
