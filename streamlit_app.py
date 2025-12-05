@@ -425,15 +425,58 @@ elif page == "Manage Restaurants":
             st.subheader("🔄 Update Existing Restaurant")
             st.info("Select a restaurant to edit (feature coming soon).")
 
-# ============================================
 # PAGE — MANAGE REVIEWS (SEPARATE PAGE)
 # ============================================
 elif page == "Manage Reviews":
+    import datetime  # used for date insertion if a date column exists
+
     st.header("⭐ Manage Reviews")
     st.markdown("---")
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
+        # --- Inspect Reviews table columns first ---
+        review_columns = []
+        try:
+            cursor = connection.cursor()
+            cursor.execute("""
+                SELECT COLUMN_NAME
+                FROM INFORMATION_SCHEMA.COLUMNS
+                WHERE TABLE_SCHEMA = 'group02' AND TABLE_NAME = 'Reviews'
+            """)
+            review_columns = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            st.info(f"📌 Reviews table columns: {review_columns}")
+        except Error as e:
+            st.error(f"❌ Could not inspect Reviews table: {e}")
+            st.stop()
+
+        colset = set(review_columns)
+
+        # Required columns for this page to work
+        required = {"review_id", "restaurant_id", "rating"}
+        if not required.issubset(colset):
+            st.error(
+                "❌ The Reviews table must contain at least these columns: "
+                "`review_id`, `restaurant_id`, `rating`.\n\n"
+                f"Current columns: {review_columns}"
+            )
+            st.stop()
+
+        # Optional: text column
+        text_col = None
+        for candidate in ["review_text", "review", "comments", "text"]:
+            if candidate in colset:
+                text_col = candidate
+                break
+
+        # Optional: date column
+        date_col = None
+        for candidate in ["review_date", "date_added", "created_at", "created", "timestamp"]:
+            if candidate in colset:
+                date_col = candidate
+                break
+
         review_tab1, review_tab2, review_tab3 = st.tabs(
             ["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"]
         )
@@ -441,15 +484,24 @@ elif page == "Manage Reviews":
         # =============== TAB 1: VIEW REVIEWS ===============
         with review_tab1:
             try:
-                query = """
-                    SELECT rv.review_id,
-                           r.name AS restaurant_name,
-                           rv.rating,
-                           rv.review_text,
-                           rv.review_date
+                select_fields = [
+                    "rv.review_id",
+                    "r.name AS restaurant_name"
+                ]
+                if "rating" in colset:
+                    select_fields.append("rv.rating")
+                if text_col is not None:
+                    select_fields.append(f"rv.{text_col} AS review_text")
+                if date_col is not None:
+                    select_fields.append(f"rv.{date_col} AS review_date")
+
+                select_clause = ", ".join(select_fields)
+
+                query = f"""
+                    SELECT {select_clause}
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_date DESC
+                    ORDER BY rv.review_id DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
 
@@ -461,17 +513,20 @@ elif page == "Manage Reviews":
                         col1, col2, col3 = st.columns([2, 1, 1])
                         with col1:
                             st.markdown(f"**{review['restaurant_name']}**")
+                            # We don't know if a name column exists in Reviews → show as Anonymous
                             st.markdown(f"*Reviewer: Anonymous*")
                         with col2:
-                            stars = "⭐" * int(review['rating'])
-                            st.markdown(f"{stars} ({review['rating']}/5)")
+                            if "rating" in reviews_df.columns:
+                                stars = "⭐" * int(review["rating"])
+                                st.markdown(f"{stars} ({review['rating']}/5)")
                         with col3:
-                            st.markdown(f"📅 {review['review_date']}")
-                        if pd.notna(review['review_text']):
+                            if "review_date" in reviews_df.columns and pd.notna(review["review_date"]):
+                                st.markdown(f"📅 {review['review_date']}")
+                        if "review_text" in reviews_df.columns and pd.notna(review["review_text"]):
                             st.markdown(f"> {review['review_text']}")
                         st.markdown("---")
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"❌ Error loading reviews: {e}")
 
         # =============== TAB 2: ADD REVIEW ===============
         with review_tab2:
@@ -493,47 +548,67 @@ elif page == "Manage Reviews":
                     selected_restaurant_id = restaurant_options[selected_restaurant]
 
                     rating = st.slider("Rating *", 1, 5, 5)
-                    review_text = st.text_area(
-                        "Review Text",
+                    review_text_input = st.text_area(
+                        "Review Text (optional)",
                         placeholder="Share your experience...",
                         height=150,
                     )
 
                     if st.button("💾 Submit Review", type="primary"):
                         try:
+                            # Build dynamic INSERT for the existing columns
+                            columns = ["restaurant_id", "rating"]
+                            values = [selected_restaurant_id, rating]
+
+                            if text_col is not None:
+                                columns.append(text_col)
+                                values.append(review_text_input or None)
+
+                            if date_col is not None:
+                                columns.append(date_col)
+                                values.append(datetime.date.today())
+
+                            cols_sql = ", ".join(columns)
+                            placeholders_sql = ", ".join(["%s"] * len(values))
+
+                            sql = f"INSERT INTO Reviews ({cols_sql}) VALUES ({placeholders_sql})"
                             cursor = connection.cursor()
-                            cursor.execute(
-                                """
-                                INSERT INTO Reviews (restaurant_id, rating, review_text, review_date)
-                                VALUES (%s, %s, %s, CURDATE())
-                                """,
-                                (selected_restaurant_id, rating, review_text or None),
-                            )
+                            cursor.execute(sql, values)
                             connection.commit()
                             cursor.close()
+
                             st.success(
                                 f"✅ Review submitted for **{selected_restaurant}**!"
                             )
                             st.balloons()
                         except Error as e:
                             connection.rollback()
-                            st.error(f"❌ Error: {e}")
+                            st.error(f"❌ Error inserting review: {e}")
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"❌ Error preparing Add Review: {e}")
 
         # =============== TAB 3: DELETE REVIEW ===============
         with review_tab3:
             st.warning("⚠️ This action cannot be undone!")
             try:
-                query = """
-                    SELECT rv.review_id,
-                           r.name AS restaurant_name,
-                           rv.rating,
-                           rv.review_text,
-                           rv.review_date
+                select_fields = [
+                    "rv.review_id",
+                    "r.name AS restaurant_name"
+                ]
+                if "rating" in colset:
+                    select_fields.append("rv.rating")
+                if text_col is not None:
+                    select_fields.append(f"rv.{text_col} AS review_text")
+                if date_col is not None:
+                    select_fields.append(f"rv.{date_col} AS review_date")
+
+                select_clause = ", ".join(select_fields)
+
+                query = f"""
+                    SELECT {select_clause}
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_date DESC
+                    ORDER BY rv.review_id DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
 
@@ -567,17 +642,23 @@ elif page == "Manage Reviews":
                         with col2:
                             st.write(f"**{review['restaurant_name']}**")
                             st.write("*Reviewer: Anonymous*")
+                            if "review_date" in reviews_df.columns and pd.notna(review["review_date"]):
+                                st.write(f"📅 {review['review_date']}")
                         with col3:
-                            stars = "⭐" * int(review["rating"])
-                            st.write(f"{stars}")
+                            if "rating" in reviews_df.columns:
+                                stars = "⭐" * int(review["rating"])
+                                st.write(f"{stars}")
                         with col4:
-                            preview = (
-                                review["review_text"][:50] + "..."
-                                if pd.notna(review["review_text"])
-                                and len(str(review["review_text"])) > 50
-                                else review["review_text"]
-                            )
-                            st.write(f"_{preview if pd.notna(preview) else 'No text'}_")
+                            if "review_text" in reviews_df.columns:
+                                preview = (
+                                    review["review_text"][:50] + "..."
+                                    if pd.notna(review["review_text"])
+                                    and len(str(review["review_text"])) > 50
+                                    else review["review_text"]
+                                )
+                                st.write(f"_{preview if pd.notna(preview) else 'No text'}_")
+                            else:
+                                st.write("_No text column in table_")
 
                     if len(st.session_state.selected_reviews_to_delete) > 0:
                         st.error(
@@ -601,10 +682,10 @@ elif page == "Manage Reviews":
                                     st.session_state.selected_reviews_to_delete = []
                                 except Error as e:
                                     connection.rollback()
-                                    st.error(f"❌ Failed: {e}")
+                                    st.error(f"❌ Failed to delete: {e}")
                         with col2:
                             if st.button("Cancel"):
                                 st.session_state.selected_reviews_to_delete = []
                                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Error: {e}")
+                st.error(f"❌ Error loading reviews for delete: {e}")
