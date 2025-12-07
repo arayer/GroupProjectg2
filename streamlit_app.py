@@ -432,7 +432,7 @@ elif page == "Manage Reviews":
             st.subheader("📋 All Reviews")
             try:
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.user_name, 
                            rv.rating, rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
@@ -464,7 +464,7 @@ elif page == "Manage Reviews":
                             col1, col2, col3 = st.columns([2, 1, 1])
                             with col1:
                                 st.markdown(f"**{review['restaurant_name']}**")
-                                st.markdown(f"*By: {review['reviewer_name']}*")
+                                st.markdown(f"*By: {review['user_name']}*")
                             with col2:
                                 stars = "⭐" * int(review['rating'])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
@@ -513,7 +513,7 @@ elif page == "Manage Reviews":
                                 try:
                                     cursor = connection.cursor()
                                     cursor.execute("""
-                                        INSERT INTO Reviews (restaurant_id, reviewer_name, rating, review_text, review_date)
+                                        INSERT INTO Reviews (restaurant_id, user_name, rating, review_text, review_date)
                                         VALUES (%s, %s, %s, %s, CURDATE())
                                     """, (selected_restaurant_id, reviewer_name, rating, review_text or None))
                                     connection.commit()
@@ -535,7 +535,7 @@ elif page == "Manage Reviews":
             st.warning("⚠️ This action cannot be undone!")
             try:
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.user_name, 
                            rv.rating, rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
@@ -576,7 +576,7 @@ elif page == "Manage Reviews":
                                 st.session_state.selected_reviews_to_delete.remove(review["review_id"])
                         with col2:
                             st.write(f"**{review['restaurant_name']}**")
-                            st.write(f"*{review['reviewer_name']}*")
+                            st.write(f"*{review['user_name']}*")
                         with col3:
                             stars = "⭐" * int(review['rating'])
                             st.write(f"{stars}")
