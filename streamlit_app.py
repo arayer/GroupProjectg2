@@ -476,7 +476,6 @@ elif page == "Manage Reviews":
                             col1, col2, col3 = st.columns([2, 1, 1])
                             with col1:
                                 st.markdown(f"**{review['restaurant_name']}**")
-                                # Removed reviewer name since column doesn't exist
                             with col2:
                                 stars = "⭐" * int(review['rating'])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
@@ -507,13 +506,7 @@ elif page == "Manage Reviews":
                     selected_restaurant = st.selectbox("Select Restaurant *", list(restaurant_options.keys()))
                     selected_restaurant_id = restaurant_options[selected_restaurant]
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        # Removed reviewer name input - Reviews table doesn't have this column
-                        pass
-                    with col2:
-                        rating = st.slider("Rating *", 1, 5, 5, help="Rate from 1 to 5 stars")
-                    
+                    rating = st.slider("Rating *", 1, 5, 5, help="Rate from 1 to 5 stars")
                     review_text = st.text_area("Review Text", placeholder="Share your experience...", height=150)
                     
                     st.markdown("---")
@@ -526,13 +519,13 @@ elif page == "Manage Reviews":
                                     INSERT INTO Reviews (restaurant_id, rating, review_text, review_date)
                                     VALUES (%s, %s, %s, CURDATE())
                                 """, (selected_restaurant_id, rating, review_text or None))
-                                    connection.commit()
-                                    cursor.close()
-                                    st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
-                                    st.balloons()
-                                except Error as e:
-                                    connection.rollback()
-                                    st.error(f"❌ Database error: {e}")
+                                connection.commit()
+                                cursor.close()
+                                st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
+                                st.balloons()
+                            except Error as e:
+                                connection.rollback()
+                                st.error(f"❌ Database error: {e}")
                     with col2:
                         if st.button("Clear Form"):
                             st.rerun()
@@ -609,8 +602,6 @@ elif page == "Manage Reviews":
                                     cursor.close()
                                     st.success(f"✅ Successfully deleted {len(st.session_state.selected_reviews_to_delete)} review(s)!")
                                     st.session_state.selected_reviews_to_delete = []
-                                    if st.button("🔄 Refresh"):
-                                        st.rerun()
                                 except Error as e:
                                     connection.rollback()
                                     st.error(f"❌ Failed to delete: {e}")
