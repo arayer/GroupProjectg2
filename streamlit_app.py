@@ -431,9 +431,21 @@ elif page == "Manage Reviews":
         with review_tab1:
             st.subheader("📋 All Reviews")
             try:
+                # First, let's check what columns exist in the Reviews table
+                cursor = connection.cursor()
+                cursor.execute("DESCRIBE Reviews")
+                columns_info = cursor.fetchall()
+                cursor.close()
+                
+                # Display column names for debugging
+                with st.expander("🔍 Debug: Reviews Table Structure"):
+                    st.write("Available columns in Reviews table:")
+                    for col in columns_info:
+                        st.write(f"- {col[0]} ({col[1]})")
+                
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.user_name, 
-                           rv.rating, rv.review_text, rv.review_date
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.rating, 
+                           rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
                     ORDER BY rv.review_date DESC
@@ -464,7 +476,7 @@ elif page == "Manage Reviews":
                             col1, col2, col3 = st.columns([2, 1, 1])
                             with col1:
                                 st.markdown(f"**{review['restaurant_name']}**")
-                                st.markdown(f"*By: {review['user_name']}*")
+                                # Removed reviewer name since column doesn't exist
                             with col2:
                                 stars = "⭐" * int(review['rating'])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
@@ -497,25 +509,23 @@ elif page == "Manage Reviews":
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        reviewer_name = st.text_input("Your Name *", placeholder="e.g., John Doe")
+                        # Removed reviewer name input - Reviews table doesn't have this column
+                        pass
                     with col2:
                         rating = st.slider("Rating *", 1, 5, 5, help="Rate from 1 to 5 stars")
                     
-                    review_text = st.text_area("Review Text", placeholder="Share your experience... (optional)", height=150)
+                    review_text = st.text_area("Review Text", placeholder="Share your experience...", height=150)
                     
                     st.markdown("---")
                     col1, col2, _ = st.columns([1, 1, 3])
                     with col1:
                         if st.button("💾 Submit Review", type="primary"):
-                            if not reviewer_name:
-                                st.error("❌ Please enter your name!")
-                            else:
-                                try:
-                                    cursor = connection.cursor()
-                                    cursor.execute("""
-                                        INSERT INTO Reviews (restaurant_id, user_name, rating, review_text, review_date)
-                                        VALUES (%s, %s, %s, %s, CURDATE())
-                                    """, (selected_restaurant_id, reviewer_name, rating, review_text or None))
+                            try:
+                                cursor = connection.cursor()
+                                cursor.execute("""
+                                    INSERT INTO Reviews (restaurant_id, rating, review_text, review_date)
+                                    VALUES (%s, %s, %s, CURDATE())
+                                """, (selected_restaurant_id, rating, review_text or None))
                                     connection.commit()
                                     cursor.close()
                                     st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
@@ -535,8 +545,8 @@ elif page == "Manage Reviews":
             st.warning("⚠️ This action cannot be undone!")
             try:
                 query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.user_name, 
-                           rv.rating, rv.review_text, rv.review_date
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.rating, 
+                           rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
                     ORDER BY rv.review_date DESC
@@ -576,7 +586,6 @@ elif page == "Manage Reviews":
                                 st.session_state.selected_reviews_to_delete.remove(review["review_id"])
                         with col2:
                             st.write(f"**{review['restaurant_name']}**")
-                            st.write(f"*{review['user_name']}*")
                         with col3:
                             stars = "⭐" * int(review['rating'])
                             st.write(f"{stars}")
