@@ -68,10 +68,7 @@ def ensure_is_active_column():
 # Sidebar Navigation
 st.sidebar.title("🍽️ Dallas Restaurants")
 st.sidebar.markdown("---")
-page = st.sidebar.radio(
-    "Navigation",
-    ["Home", "Restaurant Search", "Find Food Near Me!", "Manage Restaurants", "Manage Reviews"]
-)
+page = st.sidebar.radio("Navigation", ["Home", "Restaurant Search", "Find Food Near Me!", "Manage Restaurants", "Manage Reviews"])
 st.sidebar.markdown("---")
 st.sidebar.info("Group02 • ITOM6265 • Dallas Restaurants Dashboard")
 
@@ -103,11 +100,12 @@ if page == "Home":
         st.image("drelogo.png", caption="Dallas Restaurant Explorer", use_container_width=True)
     st.write("---")
     st.subheader("Features")
-    feat1, feat2, feat3, feat4 = st.columns(4)
-    with feat1: st.markdown("### 🗺️ Interactive Map")
-    with feat2: st.markdown("### 📋 Restaurant Table")
-    with feat3: st.markdown("### ➕ Add New Data")
-    with feat4: st.markdown("### 🗃️ Archive Manager")
+    feat1, feat2, feat3, feat4, feat5 = st.columns(5)
+    with feat1: st.markdown("### 🗺️ Map")
+    with feat2: st.markdown("### 📋 Search")
+    with feat3: st.markdown("### ➕ Add")
+    with feat4: st.markdown("### 🗃️ Archive")
+    with feat5: st.markdown("### ⭐ Reviews")
     st.write("---")
     st.markdown("<p style='text-align:center; color:#bbbbbb;'>Built by Group02 • Powered by Streamlit & MySQL</p>", unsafe_allow_html=True)
 
@@ -263,11 +261,8 @@ elif page == "Manage Restaurants":
                     for idx, row in df.iterrows():
                         col1, col2, col3, col4 = st.columns([0.5, 2, 1.5, 2])
                         with col1:
-                            is_selected = st.checkbox(
-                                "",
-                                value=row["restaurant_id"] in st.session_state.selected_to_archive,
-                                key=f"archive_cb_{row['restaurant_id']}"
-                            )
+                            is_selected = st.checkbox("", value=row["restaurant_id"] in st.session_state.selected_to_archive,
+                                                     key=f"archive_cb_{row['restaurant_id']}")
                             if is_selected and row["restaurant_id"] not in st.session_state.selected_to_archive:
                                 st.session_state.selected_to_archive.append(row["restaurant_id"])
                             elif not is_selected and row["restaurant_id"] in st.session_state.selected_to_archive:
@@ -327,11 +322,8 @@ elif page == "Manage Restaurants":
                     for idx, row in df.iterrows():
                         col1, col2 = st.columns([0.5, 4])
                         with col1:
-                            sel = st.checkbox(
-                                "",
-                                value=row["restaurant_id"] in st.session_state.selected_to_restore,
-                                key=f"restore_cb_{row['restaurant_id']}"
-                            )
+                            sel = st.checkbox("", value=row["restaurant_id"] in st.session_state.selected_to_restore,
+                                            key=f"restore_cb_{row['restaurant_id']}")
                             if sel and row["restaurant_id"] not in st.session_state.selected_to_restore:
                                 st.session_state.selected_to_restore.append(row["restaurant_id"])
                             elif not sel and row["restaurant_id"] in st.session_state.selected_to_restore:
@@ -376,10 +368,8 @@ elif page == "Manage Restaurants":
                     with col1: st.metric("Total", len(df))
                     with col2: st.metric("Active", len(df[df["is_active"] == True]))
                     with col3: st.metric("Archived", len(df[df["is_active"] == False]))
-                    st.dataframe(
-                        df[["restaurant_id", "name", "status", "price_symbol", "cuisines"]],
-                        use_container_width=True, height=500
-                    )
+                    st.dataframe(df[["restaurant_id", "name", "status", "price_symbol", "cuisines"]], 
+                               use_container_width=True, height=500)
             except Exception as e:
                 st.error(f"❌ Error: {e}")
         
@@ -420,323 +410,198 @@ elif page == "Manage Restaurants":
                         connection.rollback()
                         st.error(f"❌ Error: {e}")
         
-        # TAB 5: Update Restaurant (placeholder)
+        # TAB 5: Update Restaurant
         with tab5:
             st.subheader("🔄 Update Existing Restaurant")
-            st.info("Select a restaurant to edit (feature coming soon).")
+            st.info("Select a restaurant to edit its details")
 
 # ============================================
-# PAGE — MANAGE REVIEWS (SEPARATE PAGE)
+# PAGE 5 — MANAGE REVIEWS (NEW SEPARATE PAGE)
 # ============================================
 elif page == "Manage Reviews":
-    import datetime  # used for date insertion if a date column exists
-
     st.header("⭐ Manage Reviews")
     st.markdown("---")
+    
     if not db_connected:
         st.error("Database connection unavailable.")
     else:
-        # --- Inspect Reviews table columns first ---
-        review_columns = []
-        try:
-            cursor = connection.cursor()
-            cursor.execute("""
-                SELECT COLUMN_NAME
-                FROM INFORMATION_SCHEMA.COLUMNS
-                WHERE TABLE_SCHEMA = 'group02' AND TABLE_NAME = 'Reviews'
-            """)
-            review_columns = [row[0] for row in cursor.fetchall()]
-            cursor.close()
-            st.info(f"📌 Reviews table columns: {review_columns}")
-        except Error as e:
-            st.error(f"❌ Could not inspect Reviews table: {e}")
-            st.stop()
-
-        # --- DEBUG BLOCK: Inspect Users table (columns + sample rows) ---
-        st.write("🔎 Debug: Users table preview")
-        try:
-            cursor = connection.cursor()
-            cursor.execute("SELECT * FROM Users LIMIT 5")
-            rows = cursor.fetchall()
-            col_names = [desc[0] for desc in cursor.description]
-            cursor.close()
-            st.write("👤 Users columns:", col_names)
-            st.write("👤 Sample rows:", rows)
-        except Error as e:
-            st.error(f"❌ Error reading Users table: {e}")
-
-        colset = set(review_columns)
-
-        # Required columns for this page to work
-        required = {"review_id", "restaurant_id", "rating"}
-        if not required.issubset(colset):
-            st.error(
-                "❌ The Reviews table must contain at least these columns: "
-                "`review_id`, `restaurant_id`, `rating`.\n\n"
-                f"Current columns: {review_columns}"
-            )
-            st.stop()
-
-        # Optional: text column
-        text_col = None
-        for candidate in ["review_text", "review", "comments", "text"]:
-            if candidate in colset:
-                text_col = candidate
-                break
-
-        # Optional: date column
-        date_col = None
-        for candidate in ["review_date", "date_added", "created_at", "created", "timestamp"]:
-            if candidate in colset:
-                date_col = candidate
-                break
-
-        has_user_id = "user_id" in colset
-
-        review_tab1, review_tab2, review_tab3 = st.tabs(
-            ["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"]
-        )
-
-        # =============== TAB 1: VIEW REVIEWS ===============
+        review_tab1, review_tab2, review_tab3 = st.tabs(["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"])
+        
+        # TAB 1: View Reviews
         with review_tab1:
+            st.subheader("📋 All Reviews")
             try:
-                select_fields = [
-                    "rv.review_id",
-                    "r.name AS restaurant_name"
-                ]
-                if "rating" in colset:
-                    select_fields.append("rv.rating")
-                if text_col is not None:
-                    select_fields.append(f"rv.{text_col} AS review_text")
-                if date_col is not None:
-                    select_fields.append(f"rv.{date_col} AS review_date")
-
-                select_clause = ", ".join(select_fields)
-
-                query = f"""
-                    SELECT {select_clause}
+                query = """
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
+                           rv.rating, rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_id DESC
+                    ORDER BY rv.review_date DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
-
                 if reviews_df.empty:
-                    st.info("No reviews found.")
+                    st.info("No reviews found in the database.")
                 else:
                     st.success(f"📊 {len(reviews_df)} total reviews")
-                    for _, review in reviews_df.iterrows():
-                        col1, col2, col3 = st.columns([2, 1, 1])
-                        with col1:
-                            st.markdown(f"**{review['restaurant_name']}**")
-                            st.markdown(f"*Reviewer: Anonymous*")
-                        with col2:
-                            if "rating" in reviews_df.columns:
-                                stars = "⭐" * int(review["rating"])
+                    
+                    # Add filter by restaurant
+                    restaurant_filter = st.selectbox(
+                        "Filter by Restaurant:",
+                        ["All Restaurants"] + sorted(reviews_df["restaurant_name"].unique().tolist())
+                    )
+                    
+                    # Apply filter
+                    if restaurant_filter != "All Restaurants":
+                        filtered_reviews = reviews_df[reviews_df["restaurant_name"] == restaurant_filter]
+                    else:
+                        filtered_reviews = reviews_df
+                    
+                    st.markdown("---")
+                    
+                    # Display reviews
+                    for _, review in filtered_reviews.iterrows():
+                        with st.container():
+                            col1, col2, col3 = st.columns([2, 1, 1])
+                            with col1:
+                                st.markdown(f"**{review['restaurant_name']}**")
+                                st.markdown(f"*By: {review['reviewer_name']}*")
+                            with col2:
+                                stars = "⭐" * int(review['rating'])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
-                        with col3:
-                            if "review_date" in reviews_df.columns and pd.notna(review.get("review_date", None)):
+                            with col3:
                                 st.markdown(f"📅 {review['review_date']}")
-                        if "review_text" in reviews_df.columns and pd.notna(review.get("review_text", None)):
-                            st.markdown(f"> {review['review_text']}")
-                        st.markdown("---")
+                            if pd.notna(review['review_text']):
+                                st.markdown(f"> {review['review_text']}")
+                            st.markdown("---")
+                    
+                    if restaurant_filter != "All Restaurants":
+                        st.info(f"Showing {len(filtered_reviews)} reviews for {restaurant_filter}")
             except Exception as e:
                 st.error(f"❌ Error loading reviews: {e}")
-
-        # =============== TAB 2: ADD REVIEW ===============
+        
+        # TAB 2: Add Review
         with review_tab2:
+            st.subheader("➕ Add New Review")
             try:
-                # Get active restaurants
                 cursor = connection.cursor()
-                cursor.execute(
-                    "SELECT restaurant_id, name FROM Restaurants WHERE is_active = TRUE ORDER BY name"
-                )
+                cursor.execute("SELECT restaurant_id, name FROM Restaurants WHERE is_active = TRUE ORDER BY name")
                 restaurants = cursor.fetchall()
                 cursor.close()
-
+                
                 if not restaurants:
-                    st.warning("No active restaurants.")
+                    st.warning("No active restaurants available to review.")
                 else:
                     restaurant_options = {name: rid for rid, name in restaurants}
-                    selected_restaurant = st.selectbox(
-                        "Select Restaurant *", list(restaurant_options.keys())
-                    )
+                    selected_restaurant = st.selectbox("Select Restaurant *", list(restaurant_options.keys()))
                     selected_restaurant_id = restaurant_options[selected_restaurant]
-
-                    rating = st.slider("Rating *", 1, 5, 5)
-                    review_text_input = st.text_area(
-                        "Review Text (optional)",
-                        placeholder="Share your experience...",
-                        height=150,
-                    )
-
-                    # ---- handle user_id if required by schema ----
-                    user_id_value = None
-                    can_submit = True
-
-                    if has_user_id:
-                        st.markdown("### Reviewer (user_id)")
-                        st.caption(
-                            "Your Reviews table requires a `user_id` that matches a row in the Users table."
-                        )
-
-                        users = []
-                        try:
-                            cursor = connection.cursor()
-                            cursor.execute("SELECT user_id FROM Users ORDER BY user_id")
-                            users = [row[0] for row in cursor.fetchall()]
-                            cursor.close()
-                        except Exception as e:
-                            st.error(f"❌ Could not load Users table: {e}")
-                            users = []
-
-                        if not users:
-                            st.error(
-                                "❌ No users found in the `Users` table.\n\n"
-                                "You must insert at least one row into `Users` before adding reviews."
-                            )
-                            can_submit = False
-                        else:
-                            user_id_value = st.selectbox(
-                                "Select Reviewer (user_id) *", users
-                            )
-
-                    if st.button("💾 Submit Review", type="primary"):
-                        if not can_submit:
-                            st.stop()
-
-                        try:
-                            # Build dynamic INSERT for existing columns
-                            columns = ["restaurant_id", "rating"]
-                            values = [selected_restaurant_id, rating]
-
-                            if has_user_id:
-                                if user_id_value is None:
-                                    st.error("❌ Please select a user_id.")
-                                    st.stop()
-                                columns.append("user_id")
-                                values.append(int(user_id_value))
-
-                            if text_col is not None:
-                                columns.append(text_col)
-                                values.append(review_text_input or None)
-
-                            if date_col is not None:
-                                columns.append(date_col)
-                                values.append(datetime.date.today())
-
-                            cols_sql = ", ".join(columns)
-                            placeholders_sql = ", ".join(["%s"] * len(values))
-
-                            sql = f"INSERT INTO Reviews ({cols_sql}) VALUES ({placeholders_sql})"
-                            cursor = connection.cursor()
-                            cursor.execute(sql, values)
-                            connection.commit()
-                            cursor.close()
-
-                            st.success(
-                                f"✅ Review submitted for **{selected_restaurant}**!"
-                            )
-                            st.balloons()
-                        except Error as e:
-                            connection.rollback()
-                            st.error(f"❌ Error inserting review: {e}")
+                    
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        reviewer_name = st.text_input("Your Name *", placeholder="e.g., John Doe")
+                    with col2:
+                        rating = st.slider("Rating *", 1, 5, 5, help="Rate from 1 to 5 stars")
+                    
+                    review_text = st.text_area("Review Text", placeholder="Share your experience... (optional)", height=150)
+                    
+                    st.markdown("---")
+                    col1, col2, _ = st.columns([1, 1, 3])
+                    with col1:
+                        if st.button("💾 Submit Review", type="primary"):
+                            if not reviewer_name:
+                                st.error("❌ Please enter your name!")
+                            else:
+                                try:
+                                    cursor = connection.cursor()
+                                    cursor.execute("""
+                                        INSERT INTO Reviews (restaurant_id, reviewer_name, rating, review_text, review_date)
+                                        VALUES (%s, %s, %s, %s, CURDATE())
+                                    """, (selected_restaurant_id, reviewer_name, rating, review_text or None))
+                                    connection.commit()
+                                    cursor.close()
+                                    st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
+                                    st.balloons()
+                                except Error as e:
+                                    connection.rollback()
+                                    st.error(f"❌ Database error: {e}")
+                    with col2:
+                        if st.button("Clear Form"):
+                            st.rerun()
             except Exception as e:
-                st.error(f"❌ Error preparing Add Review: {e}")
-
-        # =============== TAB 3: DELETE REVIEW ===============
+                st.error(f"❌ Error loading form: {e}")
+        
+        # TAB 3: Delete Review
         with review_tab3:
+            st.subheader("🗑️ Delete Reviews")
             st.warning("⚠️ This action cannot be undone!")
             try:
-                select_fields = [
-                    "rv.review_id",
-                    "r.name AS restaurant_name"
-                ]
-                if "rating" in colset:
-                    select_fields.append("rv.rating")
-                if text_col is not None:
-                    select_fields.append(f"rv.{text_col} AS review_text")
-                if date_col is not None:
-                    select_fields.append(f"rv.{date_col} AS review_date")
-
-                select_clause = ", ".join(select_fields)
-
-                query = f"""
-                    SELECT {select_clause}
+                query = """
+                    SELECT rv.review_id, r.name AS restaurant_name, rv.reviewer_name, 
+                           rv.rating, rv.review_text, rv.review_date
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_id DESC
+                    ORDER BY rv.review_date DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
-
+                
                 if reviews_df.empty:
                     st.info("No reviews to delete.")
                 else:
+                    st.info(f"📊 {len(reviews_df)} reviews available")
+                    
                     if "selected_reviews_to_delete" not in st.session_state:
                         st.session_state.selected_reviews_to_delete = []
-
+                    
+                    # Select All / Deselect All
+                    col1, col2, _ = st.columns([1, 1, 3])
+                    with col1:
+                        if st.button("✅ Select All"):
+                            st.session_state.selected_reviews_to_delete = reviews_df["review_id"].tolist()
+                            st.rerun()
+                    with col2:
+                        if st.button("❌ Deselect All"):
+                            st.session_state.selected_reviews_to_delete = []
+                            st.rerun()
+                    
+                    st.markdown("---")
+                    
+                    # Display reviews with checkboxes
                     for _, review in reviews_df.iterrows():
                         col1, col2, col3, col4 = st.columns([0.5, 2, 1, 2])
                         with col1:
-                            sel = st.checkbox(
-                                "",
-                                value=review["review_id"]
-                                in st.session_state.selected_reviews_to_delete,
-                                key=f"delete_review_cb_{review['review_id']}",
-                            )
+                            sel = st.checkbox("", value=review["review_id"] in st.session_state.selected_reviews_to_delete,
+                                            key=f"delete_review_cb_{review['review_id']}")
                             if sel and review["review_id"] not in st.session_state.selected_reviews_to_delete:
-                                st.session_state.selected_reviews_to_delete.append(
-                                    review["review_id"]
-                                )
-                            elif (
-                                not sel
-                                and review["review_id"]
-                                in st.session_state.selected_reviews_to_delete
-                            ):
-                                st.session_state.selected_reviews_to_delete.remove(
-                                    review["review_id"]
-                                )
+                                st.session_state.selected_reviews_to_delete.append(review["review_id"])
+                            elif not sel and review["review_id"] in st.session_state.selected_reviews_to_delete:
+                                st.session_state.selected_reviews_to_delete.remove(review["review_id"])
                         with col2:
                             st.write(f"**{review['restaurant_name']}**")
-                            st.write("*Reviewer: Anonymous*")
-                            if "review_date" in reviews_df.columns and pd.notna(review.get("review_date", None)):
-                                st.write(f"📅 {review['review_date']}")
+                            st.write(f"*{review['reviewer_name']}*")
                         with col3:
-                            if "rating" in reviews_df.columns:
-                                stars = "⭐" * int(review["rating"])
-                                st.write(f"{stars}")
+                            stars = "⭐" * int(review['rating'])
+                            st.write(f"{stars}")
+                            st.write(f"📅 {review['review_date']}")
                         with col4:
-                            if "review_text" in reviews_df.columns:
-                                preview = (
-                                    review["review_text"][:50] + "..."
-                                    if pd.notna(review["review_text"])
-                                    and len(str(review["review_text"])) > 50
-                                    else review["review_text"]
-                                )
-                                st.write(f"_{preview if pd.notna(preview) else 'No text'}_")
-                            else:
-                                st.write("_No text column in table_")
-
+                            preview = review['review_text'][:50] + "..." if pd.notna(review['review_text']) and len(str(review['review_text'])) > 50 else review['review_text']
+                            st.write(f"_{preview if pd.notna(preview) else 'No text'}_")
+                    
+                    # Delete button
+                    st.markdown("---")
                     if len(st.session_state.selected_reviews_to_delete) > 0:
-                        st.error(
-                            f"⚠️ {len(st.session_state.selected_reviews_to_delete)} review(s) selected for deletion"
-                        )
+                        st.error(f"⚠️ {len(st.session_state.selected_reviews_to_delete)} review(s) selected for deletion")
                         col1, col2, _ = st.columns([1, 1, 3])
                         with col1:
                             if st.button("🗑️ Delete Selected", type="primary"):
                                 try:
                                     cursor = connection.cursor()
                                     for rid in st.session_state.selected_reviews_to_delete:
-                                        cursor.execute(
-                                            "DELETE FROM Reviews WHERE review_id = %s",
-                                            (rid,),
-                                        )
+                                        cursor.execute("DELETE FROM Reviews WHERE review_id = %s", (rid,))
                                     connection.commit()
                                     cursor.close()
-                                    st.success(
-                                        f"✅ Deleted {len(st.session_state.selected_reviews_to_delete)} review(s)!"
-                                    )
+                                    st.success(f"✅ Successfully deleted {len(st.session_state.selected_reviews_to_delete)} review(s)!")
                                     st.session_state.selected_reviews_to_delete = []
+                                    if st.button("🔄 Refresh"):
+                                        st.rerun()
                                 except Error as e:
                                     connection.rollback()
                                     st.error(f"❌ Failed to delete: {e}")
@@ -744,5 +609,11 @@ elif page == "Manage Reviews":
                             if st.button("Cancel"):
                                 st.session_state.selected_reviews_to_delete = []
                                 st.rerun()
+                    else:
+                        st.info("👆 Select reviews above to delete them")
             except Exception as e:
-                st.error(f"❌ Error loading reviews for delete: {e}")
+                st.error(f"❌ Error: {e}")
+
+# Close connection
+if connection and connection.is_connected():
+    connection.close()
