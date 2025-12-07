@@ -445,10 +445,10 @@ elif page == "Manage Reviews":
                 
                 query = """
                     SELECT rv.review_id, r.name AS restaurant_name, rv.rating, 
-                           rv.review_text, rv.review_date
+                           rv.review_text, rv.created_at
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_date DESC
+                    ORDER BY rv.created_at DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
                 if reviews_df.empty:
@@ -480,7 +480,7 @@ elif page == "Manage Reviews":
                                 stars = "⭐" * int(review['rating'])
                                 st.markdown(f"{stars} ({review['rating']}/5)")
                             with col3:
-                                st.markdown(f"📅 {review['review_date']}")
+                                st.markdown(f"📅 {review['created_at']}")
                             if pd.notna(review['review_text']):
                                 st.markdown(f"> {review['review_text']}")
                             st.markdown("---")
@@ -512,20 +512,21 @@ elif page == "Manage Reviews":
                     st.markdown("---")
                     col1, col2, _ = st.columns([1, 1, 3])
                     with col1:
-                        if st.button("💾 Submit Review", type="primary"):
-                            try:
-                                cursor = connection.cursor()
-                                cursor.execute("""
-                                    INSERT INTO Reviews (restaurant_id, rating, review_text, review_date)
-                                    VALUES (%s, %s, %s, CURDATE())
-                                """, (selected_restaurant_id, rating, review_text or None))
-                                connection.commit()
-                                cursor.close()
-                                st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
-                                st.balloons()
-                            except Error as e:
-                                connection.rollback()
-                                st.error(f"❌ Database error: {e}")
+                            if st.button("💾 Submit Review", type="primary"):
+                                try:
+                                    cursor = connection.cursor()
+                                    # Always use user_id=1 for simplicity
+                                    cursor.execute("""
+                                        INSERT INTO Reviews (restaurant_id, user_id, rating, review_text, created_at)
+                                        VALUES (%s, %s, %s, %s, NOW())
+                                    """, (selected_restaurant_id, 1, rating, review_text or None))
+                                    connection.commit()
+                                    cursor.close()
+                                    st.success(f"✅ Review submitted successfully for **{selected_restaurant}**!")
+                                    st.balloons()
+                                except Error as e:
+                                    connection.rollback()
+                                    st.error(f"❌ Database error: {e}")
                     with col2:
                         if st.button("Clear Form"):
                             st.rerun()
@@ -539,10 +540,10 @@ elif page == "Manage Reviews":
             try:
                 query = """
                     SELECT rv.review_id, r.name AS restaurant_name, rv.rating, 
-                           rv.review_text, rv.review_date
+                           rv.review_text, rv.created_at
                     FROM Reviews rv
                     INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.review_date DESC
+                    ORDER BY rv.created_at DESC
                 """
                 reviews_df = pd.read_sql(query, connection)
                 
@@ -582,7 +583,7 @@ elif page == "Manage Reviews":
                         with col3:
                             stars = "⭐" * int(review['rating'])
                             st.write(f"{stars}")
-                            st.write(f"📅 {review['review_date']}")
+                            st.write(f"📅 {review['created_at']}")
                         with col4:
                             preview = review['review_text'][:50] + "..." if pd.notna(review['review_text']) and len(str(review['review_text'])) > 50 else review['review_text']
                             st.write(f"_{preview if pd.notna(preview) else 'No text'}_")
