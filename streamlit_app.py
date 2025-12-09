@@ -428,57 +428,70 @@ elif page == "Manage Reviews":
         review_tab1, review_tab2, review_tab3 = st.tabs(["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"])
         
         # TAB 1: View Reviews
-        with review_tab1:
-            st.subheader("📋 All Reviews")
-            try:
-                # First, let's check what columns exist in the Reviews table
-                cursor = connection.cursor()
-                cursor.execute("DESCRIBE Reviews")
-                columns_info = cursor.fetchall()
-                cursor.close()
-                
+      with review_tab1:
+    st.subheader("📋 All Reviews")
+    try:
+        # Check columns in the Reviews table
+        cursor = connection.cursor()
+        cursor.execute("DESCRIBE Reviews")
+        columns_info = cursor.fetchall()
+        cursor.close()
+
+        # Load reviews
+        query = """
+            SELECT r.review_id, r.restaurant_id, rest.name AS restaurant_name,
+                   r.rating, r.review_text, r.created_at
+            FROM Reviews r
+            JOIN Restaurants rest ON r.restaurant_id = rest.restaurant_id
+            ORDER BY r.created_at DESC;
+        """
         
-                """
-                reviews_df = pd.read_sql(query, connection)
-                if reviews_df.empty:
-                    st.info("No reviews found in the database.")
-                else:
-                    st.success(f"📊 {len(reviews_df)} total reviews")
-                    
-                    # Add filter by restaurant
-                    restaurant_filter = st.selectbox(
-                        "Filter by Restaurant:",
-                        ["All Restaurants"] + sorted(reviews_df["restaurant_name"].unique().tolist())
-                    )
-                    
-                    # Apply filter
-                    if restaurant_filter != "All Restaurants":
-                        filtered_reviews = reviews_df[reviews_df["restaurant_name"] == restaurant_filter]
-                    else:
-                        filtered_reviews = reviews_df
-                    
+        reviews_df = pd.read_sql(query, connection)
+
+        if reviews_df.empty:
+            st.info("No reviews found in the database.")
+        else:
+            st.success(f"📊 {len(reviews_df)} total reviews")
+
+            # Filter by restaurant
+            restaurant_filter = st.selectbox(
+                "Filter by Restaurant:",
+                ["All Restaurants"] + sorted(reviews_df["restaurant_name"].unique().tolist())
+            )
+
+            if restaurant_filter != "All Restaurants":
+                filtered_reviews = reviews_df[reviews_df["restaurant_name"] == restaurant_filter]
+            else:
+                filtered_reviews = reviews_df
+
+            st.markdown("---")
+
+            # Display reviews
+            for _, review in filtered_reviews.iterrows():
+                with st.container():
+                    col1, col2, col3 = st.columns([2, 1, 1])
+
+                    with col1:
+                        st.markdown(f"**{review['restaurant_name']}**")
+
+                    with col2:
+                        stars = "⭐" * int(review['rating'])
+                        st.markdown(f"{stars} ({review['rating']}/5)")
+
+                    with col3:
+                        st.markdown(f"📅 {review['created_at']}")
+
+                    if pd.notna(review['review_text']):
+                        st.markdown(f"> {review['review_text']}")
+
                     st.markdown("---")
-                    
-                    # Display reviews
-                    for _, review in filtered_reviews.iterrows():
-                        with st.container():
-                            col1, col2, col3 = st.columns([2, 1, 1])
-                            with col1:
-                                st.markdown(f"**{review['restaurant_name']}**")
-                            with col2:
-                                stars = "⭐" * int(review['rating'])
-                                st.markdown(f"{stars} ({review['rating']}/5)")
-                            with col3:
-                                st.markdown(f"📅 {review['created_at']}")
-                            if pd.notna(review['review_text']):
-                                st.markdown(f"> {review['review_text']}")
-                            st.markdown("---")
-                    
-                    if restaurant_filter != "All Restaurants":
-                        st.info(f"Showing {len(filtered_reviews)} reviews for {restaurant_filter}")
-            except Exception as e:
-                st.error(f"❌ Error loading reviews: {e}")
-        
+
+            if restaurant_filter != "All Restaurants":
+                st.info(f"Showing {len(filtered_reviews)} reviews for {restaurant_filter}")
+
+    except Exception as e:
+        st.error(f"❌ Error loading reviews: {e}")
+
         # TAB 2: Add Review
         with review_tab2:
             st.subheader("➕ Add New Review")
