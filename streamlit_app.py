@@ -440,10 +440,12 @@ elif page == "Manage Restaurants":
                     )
                     selected_restaurant_id = restaurant_options[selected_restaurant_display]
                     
-                    # Fetch current restaurant details
-                    cursor = connection.cursor()
+                    # Fetch current restaurant details - using dictionary cursor for clarity
+                    cursor = connection.cursor(dictionary=True)
                     cursor.execute("""
-                        SELECT r.*, pr.price_symbol
+                        SELECT r.restaurant_id, r.name, r.street_address, r.city, r.state, 
+                               r.zip_code, r.phone, r.website, r.description, 
+                               r.latitude, r.longitude, r.is_active, pr.price_symbol
                         FROM Restaurants r
                         LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
                         LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
@@ -457,56 +459,52 @@ elif page == "Manage Restaurants":
                         st.markdown("### Current Restaurant Information")
                         st.info("Edit the fields below and click 'Update Restaurant' to save changes.")
                         
-                        # Unpack current data
-                        (rest_id, name, street, city, state, zip_code, phone, website, 
-                         description, lat, lng, is_active, price_symbol) = current_data
-                        
                         # Create form for updating
                         col1, col2 = st.columns(2)
                         
                         with col1:
                             new_name = st.text_input(
                                 "Restaurant Name *", 
-                                value=name if name else "",
+                                value=current_data['name'] if current_data['name'] else "",
                                 key=f"update_name_{selected_restaurant_id}"
                             )
                             new_street = st.text_input(
                                 "Street Address *", 
-                                value=street if street else "",
+                                value=current_data['street_address'] if current_data['street_address'] else "",
                                 key=f"update_street_{selected_restaurant_id}"
                             )
                             new_zip = st.text_input(
                                 "ZIP Code *", 
-                                value=zip_code if zip_code else "",
+                                value=current_data['zip_code'] if current_data['zip_code'] else "",
                                 key=f"update_zip_{selected_restaurant_id}"
                             )
                         
                         with col2:
                             new_city = st.text_input(
                                 "City", 
-                                value=city if city else "Dallas",
+                                value=current_data['city'] if current_data['city'] else "Dallas",
                                 key=f"update_city_{selected_restaurant_id}"
                             )
                             new_state = st.text_input(
                                 "State", 
-                                value=state if state else "TX",
+                                value=current_data['state'] if current_data['state'] else "TX",
                                 max_chars=2,
                                 key=f"update_state_{selected_restaurant_id}"
                             )
                             new_phone = st.text_input(
                                 "Phone", 
-                                value=phone if phone else "",
+                                value=current_data['phone'] if current_data['phone'] else "",
                                 key=f"update_phone_{selected_restaurant_id}"
                             )
                         
                         new_description = st.text_area(
                             "Description", 
-                            value=description if description else "",
+                            value=current_data['description'] if current_data['description'] else "",
                             key=f"update_desc_{selected_restaurant_id}"
                         )
                         new_website = st.text_input(
                             "Website", 
-                            value=website if website else "",
+                            value=current_data['website'] if current_data['website'] else "",
                             key=f"update_website_{selected_restaurant_id}"
                         )
                         
@@ -514,21 +512,21 @@ elif page == "Manage Restaurants":
                         with col1:
                             new_lat = st.number_input(
                                 "Latitude", 
-                                value=float(lat) if lat else 32.7767,
+                                value=float(current_data['latitude']) if current_data['latitude'] else 32.7767,
                                 format="%.6f",
                                 key=f"update_lat_{selected_restaurant_id}"
                             )
                         with col2:
                             new_lng = st.number_input(
                                 "Longitude", 
-                                value=float(lng) if lng else -96.7970,
+                                value=float(current_data['longitude']) if current_data['longitude'] else -96.7970,
                                 format="%.6f",
                                 key=f"update_lng_{selected_restaurant_id}"
                             )
                         
                         # Price range selection
                         price_options = ["$", "$$", "$$$", "$$$$"]
-                        current_price_index = price_options.index(price_symbol) if price_symbol in price_options else 0
+                        current_price_index = price_options.index(current_data['price_symbol']) if current_data['price_symbol'] in price_options else 0
                         new_price = st.selectbox(
                             "Price Range", 
                             price_options,
