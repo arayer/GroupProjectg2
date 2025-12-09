@@ -437,18 +437,7 @@ elif page == "Manage Reviews":
                 columns_info = cursor.fetchall()
                 cursor.close()
                 
-                # Display column names for debugging
-                with st.expander("🔍 Debug: Reviews Table Structure"):
-                    st.write("Available columns in Reviews table:")
-                    for col in columns_info:
-                        st.write(f"- {col[0]} ({col[1]})")
-                
-                query = """
-                    SELECT rv.review_id, r.name AS restaurant_name, rv.rating, 
-                           rv.review_text, rv.created_at
-                    FROM Reviews rv
-                    INNER JOIN Restaurants r ON rv.restaurant_id = r.restaurant_id
-                    ORDER BY rv.created_at DESC
+        
                 """
                 reviews_df = pd.read_sql(query, connection)
                 if reviews_df.empty:
