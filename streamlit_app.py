@@ -410,11 +410,202 @@ elif page == "Manage Restaurants":
                         connection.rollback()
                         st.error(f"❌ Error: {e}")
         
-        # TAB 5: Update Restaurant
+# TAB 5: Update Restaurant
         with tab5:
             st.subheader("🔄 Update Existing Restaurant")
             st.info("Select a restaurant to edit its details")
-
+            
+            try:
+                # Get all active restaurants
+                cursor = connection.cursor()
+                cursor.execute("""
+                    SELECT restaurant_id, name 
+                    FROM Restaurants 
+                    WHERE is_active = TRUE 
+                    ORDER BY name
+                """)
+                restaurants = cursor.fetchall()
+                cursor.close()
+                
+                if not restaurants:
+                    st.warning("No active restaurants available to update.")
+                else:
+                    # Create a dictionary for the selectbox
+                    restaurant_options = {f"{name} (ID: {rid})": rid for rid, name in restaurants}
+                    
+                    # Restaurant selection
+                    selected_restaurant_display = st.selectbox(
+                        "Select Restaurant to Update *",
+                        list(restaurant_options.keys())
+                    )
+                    selected_restaurant_id = restaurant_options[selected_restaurant_display]
+                    
+                    # Fetch current restaurant details
+                    cursor = connection.cursor()
+                    cursor.execute("""
+                        SELECT r.*, pr.price_symbol
+                        FROM Restaurants r
+                        LEFT JOIN RestaurantPricing rp ON r.restaurant_id = rp.restaurant_id
+                        LEFT JOIN PriceRanges pr ON rp.price_range_id = pr.price_range_id
+                        WHERE r.restaurant_id = %s
+                    """, (selected_restaurant_id,))
+                    current_data = cursor.fetchone()
+                    cursor.close()
+                    
+                    if current_data:
+                        st.markdown("---")
+                        st.markdown("### Current Restaurant Information")
+                        st.info("Edit the fields below and click 'Update Restaurant' to save changes.")
+                        
+                        # Unpack current data
+                        (rest_id, name, street, city, state, zip_code, phone, website, 
+                         description, lat, lng, is_active, price_symbol) = current_data
+                        
+                        # Create form for updating
+                        col1, col2 = st.columns(2)
+                        
+                        with col1:
+                            new_name = st.text_input(
+                                "Restaurant Name *", 
+                                value=name if name else "",
+                                key=f"update_name_{selected_restaurant_id}"
+                            )
+                            new_street = st.text_input(
+                                "Street Address *", 
+                                value=street if street else "",
+                                key=f"update_street_{selected_restaurant_id}"
+                            )
+                            new_zip = st.text_input(
+                                "ZIP Code *", 
+                                value=zip_code if zip_code else "",
+                                key=f"update_zip_{selected_restaurant_id}"
+                            )
+                        
+                        with col2:
+                            new_city = st.text_input(
+                                "City", 
+                                value=city if city else "Dallas",
+                                key=f"update_city_{selected_restaurant_id}"
+                            )
+                            new_state = st.text_input(
+                                "State", 
+                                value=state if state else "TX",
+                                max_chars=2,
+                                key=f"update_state_{selected_restaurant_id}"
+                            )
+                            new_phone = st.text_input(
+                                "Phone", 
+                                value=phone if phone else "",
+                                key=f"update_phone_{selected_restaurant_id}"
+                            )
+                        
+                        new_description = st.text_area(
+                            "Description", 
+                            value=description if description else "",
+                            key=f"update_desc_{selected_restaurant_id}"
+                        )
+                        new_website = st.text_input(
+                            "Website", 
+                            value=website if website else "",
+                            key=f"update_website_{selected_restaurant_id}"
+                        )
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            new_lat = st.number_input(
+                                "Latitude", 
+                                value=float(lat) if lat else 32.7767,
+                                format="%.6f",
+                                key=f"update_lat_{selected_restaurant_id}"
+                            )
+                        with col2:
+                            new_lng = st.number_input(
+                                "Longitude", 
+                                value=float(lng) if lng else -96.7970,
+                                format="%.6f",
+                                key=f"update_lng_{selected_restaurant_id}"
+                            )
+                        
+                        # Price range selection
+                        price_options = ["$", "$$", "$$$", "$$$$"]
+                        current_price_index = price_options.index(price_symbol) if price_symbol in price_options else 0
+                        new_price = st.selectbox(
+                            "Price Range", 
+                            price_options,
+                            index=current_price_index,
+                            key=f"update_price_{selected_restaurant_id}"
+                        )
+                        
+                        st.markdown("---")
+                        
+                        # Update button
+                        col1, col2, _ = st.columns([1, 1, 3])
+                        with col1:
+                            if st.button("💾 Update Restaurant", type="primary"):
+                                if not new_name or not new_street or not new_zip:
+                                    st.error("❌ Required fields (Name, Street Address, ZIP Code) cannot be empty!")
+                                else:
+                                    try:
+                                        cursor = connection.cursor()
+                                        
+                                        # Update restaurant basic info
+                                        cursor.execute("""
+                                            UPDATE Restaurants 
+                                            SET name = %s, street_address = %s, city = %s, state = %s, 
+                                                zip_code = %s, phone = %s, website = %s, description = %s,
+                                                latitude = %s, longitude = %s
+                                            WHERE restaurant_id = %s
+                                        """, (new_name, new_street, new_city, new_state, new_zip, 
+                                              new_phone, new_website, new_description, new_lat, new_lng, 
+                                              selected_restaurant_id))
+                                        
+                                        # Update price range
+                                        # First, get the price_range_id for the selected price symbol
+                                        cursor.execute("""
+                                            SELECT price_range_id FROM PriceRanges WHERE price_symbol = %s
+                                        """, (new_price,))
+                                        price_range_result = cursor.fetchone()
+                                        
+                                        if price_range_result:
+                                            price_range_id = price_range_result[0]
+                                            
+                                            # Check if pricing record exists
+                                            cursor.execute("""
+                                                SELECT COUNT(*) FROM RestaurantPricing 
+                                                WHERE restaurant_id = %s
+                                            """, (selected_restaurant_id,))
+                                            pricing_exists = cursor.fetchone()[0]
+                                            
+                                            if pricing_exists:
+                                                # Update existing pricing
+                                                cursor.execute("""
+                                                    UPDATE RestaurantPricing 
+                                                    SET price_range_id = %s 
+                                                    WHERE restaurant_id = %s
+                                                """, (price_range_id, selected_restaurant_id))
+                                            else:
+                                                # Insert new pricing record
+                                                cursor.execute("""
+                                                    INSERT INTO RestaurantPricing (restaurant_id, price_range_id)
+                                                    VALUES (%s, %s)
+                                                """, (selected_restaurant_id, price_range_id))
+                                        
+                                        connection.commit()
+                                        cursor.close()
+                                        st.success(f"✅ Successfully updated **{new_name}**!")
+                                        st.balloons()
+                                        
+                                    except Error as e:
+                                        connection.rollback()
+                                        st.error(f"❌ Database error: {e}")
+                        
+                        with col2:
+                            if st.button("🔄 Reset Form"):
+                                st.rerun()
+                    
+            except Exception as e:
+                st.error(f"❌ Error loading restaurant data: {e}")
+                
 # ============================================
 # PAGE 5 — MANAGE REVIEWS (NEW SEPARATE PAGE)
 # ============================================
