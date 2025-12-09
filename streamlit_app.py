@@ -428,24 +428,29 @@ elif page == "Manage Reviews":
         review_tab1, review_tab2, review_tab3 = st.tabs(["📋 View Reviews", "➕ Add Review", "🗑️ Delete Review"])
         
         # TAB 1: View Reviews
-      with review_tab1:
+ with review_tab1:
     st.subheader("📋 All Reviews")
+
     try:
-        # Check columns in the Reviews table
+        # First, let's check what columns exist in the Reviews table
         cursor = connection.cursor()
         cursor.execute("DESCRIBE Reviews")
         columns_info = cursor.fetchall()
         cursor.close()
 
-        # Load reviews
+        # Now load reviews
         query = """
-            SELECT r.review_id, r.restaurant_id, rest.name AS restaurant_name,
-                   r.rating, r.review_text, r.created_at
-            FROM Reviews r
-            JOIN Restaurants rest ON r.restaurant_id = rest.restaurant_id
-            ORDER BY r.created_at DESC;
+            SELECT 
+                Reviews.review_id,
+                Reviews.restaurant_id,
+                Reviews.rating,
+                Reviews.review_text,
+                Reviews.created_at,
+                Restaurants.name AS restaurant_name
+            FROM Reviews
+            JOIN Restaurants ON Reviews.restaurant_id = Restaurants.restaurant_id
+            ORDER BY Reviews.created_at DESC;
         """
-        
         reviews_df = pd.read_sql(query, connection)
 
         if reviews_df.empty:
@@ -459,6 +464,7 @@ elif page == "Manage Reviews":
                 ["All Restaurants"] + sorted(reviews_df["restaurant_name"].unique().tolist())
             )
 
+            # Apply filter
             if restaurant_filter != "All Restaurants":
                 filtered_reviews = reviews_df[reviews_df["restaurant_name"] == restaurant_filter]
             else:
@@ -466,7 +472,7 @@ elif page == "Manage Reviews":
 
             st.markdown("---")
 
-            # Display reviews
+            # Display each review
             for _, review in filtered_reviews.iterrows():
                 with st.container():
                     col1, col2, col3 = st.columns([2, 1, 1])
@@ -491,6 +497,7 @@ elif page == "Manage Reviews":
 
     except Exception as e:
         st.error(f"❌ Error loading reviews: {e}")
+
 
         # TAB 2: Add Review
         with review_tab2:
